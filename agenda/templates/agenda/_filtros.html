@@ -1,0 +1,18 @@
+<div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
+  <form method="get" class="d-flex flex-wrap gap-3 align-items-end">
+    <div><label class="form-label">Especialidad</label>
+      <select class="form-select" name="especialidad" data-autosubmit style="min-width: 190px">
+        {% for e in especialidades %}<option value="{{ e.pk }}" {% if e == esp %}selected{% endif %}>{{ e.nombre }}</option>{% endfor %}</select></div>
+    <div><label class="form-label">Profesional</label>
+      <select class="form-select" name="profesional" data-autosubmit style="min-width: 220px">
+        {% for p in profesionales %}<option value="{{ p.pk }}" {% if p == prof %}selected{% endif %}>{{ p.nombre }}{% if not p.activo %} (inactivo){% endif %}</option>{% empty %}<option>Sin profesionales</option>{% endfor %}</select></div>
+    {% if semanas %}
+    <div><label class="form-label">Semana</label>
+      <select class="form-select" name="semana" data-autosubmit style="min-width: 190px">
+        {% for s, texto in semanas %}<option value="{{ s|date:'Y-m-d' }}" {% if s == lunes %}selected{% endif %}>{{ texto }}</option>{% endfor %}</select></div>
+    {% endif %}
+  </form>
+  <div class="segmento">
+    {% for etiqueta, url, clave in tabs %}<a href="{{ url }}" class="{% if clave == tab %}activo{% endif %}">{{ etiqueta }}</a>{% endfor %}
+  </div>
+</div>

@@ -1,0 +1,45 @@
+{% extends "base_publico.html" %}
+{% load hd %}
+{% block titulo %}Confirma tu asistencia{% endblock %}
+{% block subtitulo_cabecera %}Confirmación de hora · sin cuenta ni clave{% endblock %}
+{% block derecha_cabecera %}{% endblock %}
+{% block cuerpo %}
+<h1 class="titulo-pagina">Confirma tu asistencia</h1>
+<p class="subtitulo">Abriste el link del aviso. No necesitas iniciar sesión.</p>
+<div class="tarjeta tarjeta-cuerpo mb-3">
+  {% if cita.estado == "confirmada" %}<span class="pill pill-verde">Confirmada</span>
+  {% elif cita.estado == "cancelada" %}<span class="pill pill-rojo">Cancelada</span>
+  {% else %}<span class="pill pill-naranjo">Por confirmar</span>{% endif %}
+  <h2 class="mt-3 mb-1" style="font-size: 1.9rem">{{ cita.cupo.fecha|fecha_larga|capfirst }} · {{ cita.cupo.hora_inicio|time:"H:i" }}</h2>
+  <div class="text-gris fs-5">{{ cita.cupo.agenda.profesional.especialidad }} · {{ cita.cupo.agenda.profesional.nombre }} · {{ cita.cupo.agenda.policlinico }}</div>
+  <div class="small text-gris mb-4">Paciente: {{ cita.paciente.nombre|primer_nombre }} · RUT {{ cita.paciente.rut|rut }}</div>
+  <div class="row g-4">
+    <div class="col-lg-6">
+      {% if cita.es_vigente and not cita.es_pasada %}
+        {% if cita.estado != "confirmada" %}
+        <form method="post" action="{% url 'portal:accion' cita.token 'confirmar' %}">{% csrf_token %}
+          <button class="btn btn-verde w-100 mb-2" style="padding: 1rem; font-size: 1.2rem">Sí, asistiré</button></form>
+        {% endif %}
+        <div class="d-flex gap-2">
+          <a class="btn btn-gris flex-fill py-3" href="{% url 'portal:cambiar' cita.token %}">Cambiar hora</a>
+          <form method="post" action="{% url 'portal:accion' cita.token 'cancelar' %}" class="flex-fill" data-confirmar="¿Cancelar tu hora? Quedará libre para otro paciente.">{% csrf_token %}
+            <button class="btn btn-suave-rojo w-100 py-3">Cancelar hora</button></form>
+        </div>
+      {% elif cita.estado == "cancelada" %}
+        <div class="aviso aviso-rojo">Esta hora fue cancelada. <a href="{% url 'portal:inicio' %}">Reservar una nueva hora</a></div>
+      {% else %}
+        <div class="aviso aviso-azul">Esta cita ya pasó.</div>
+      {% endif %}
+    </div>
+    <div class="col-lg-6">
+      <div class="tarjeta-gris p-3" style="border:0">
+        <div class="fw-semibold mb-2">Qué pasa con cada respuesta</div>
+        <div class="mb-2"><span class="pill pill-verde">Confirmada</span> <span class="small text-gris">La hora se mantiene.</span></div>
+        <div class="mb-2"><span class="pill pill-rojo">Cancelada</span> <span class="small text-gris">La hora queda libre para otro paciente.</span></div>
+        <div><span class="pill pill-naranjo">Sin respuesta</span> <span class="small text-gris">Si no respondes, la Hermandad te llamará.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<a class="btn btn-gris btn-lg-hd" href="{% url 'portal:aviso' cita.token %}">Volver a los avisos</a>
+{% endblock %}

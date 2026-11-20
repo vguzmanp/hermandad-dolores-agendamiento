@@ -1,0 +1,9 @@
+<div class="mb-3">
+  <div class="small text-gris mb-1">{{ m.enviado_en|date:"d/m/Y H:i" }} · {{ m.get_tipo_display }} · {{ m.get_canal_display }} → {{ m.destinatario }}
+    {% if m.estado == "fallido" %}<span class="pill pill-rojo ms-1">No se pudo enviar</span>{% else %}<span class="pill pill-verde ms-1">Enviado</span>{% endif %}</div>
+  {% if m.canal == "whatsapp" %}
+  <div class="wa-burbuja" style="background:#dcf8c6">{{ m.mensaje }}</div>
+  {% else %}
+  <div class="mail p-3"><div class="fw-semibold mb-1">{{ m.asunto }}</div><div class="small" style="white-space: pre-line">{{ m.mensaje }}</div></div>
+  {% endif %}
+</div>

@@ -76,32 +76,66 @@ class AgendaServiceTests(AgendaBase):
         self.servicio.generar_cupos(a, self.hoy, self.hoy, self.admin)
         self.assertEqual(self.servicio.bloquear_dia(a, self.hoy, "Feriado", self.admin), (4, 0))
 
-    def test_solo_administracion_gestiona_agendas(self):
+    def test_solo_administracion_define_horarios(self):
         a = self.agenda()
         with self.assertRaises(PermissionDenied):
             self.servicio.generar_cupos(a, self.hoy, self.hoy, self.tens)
 
+    def test_tens_puede_bloquear_y_liberar_de_a_poco(self):
+        a = self.agenda()
+        self.servicio.generar_cupos(a, self.hoy, self.hoy, self.admin)
+        cupos = list(Cupo.objects.all())
+        self.assertEqual(self.servicio.bloquear_varios(cupos, "Reunión", self.tens), (4, 0))
+        cupos = list(Cupo.objects.all())
+        self.assertEqual(self.servicio.liberar_varios(cupos, self.tens, maximo=1), 1)
+        self.assertEqual(Cupo.objects.filter(bloqueado=True).count(), 3)
+
+    def test_quitar_bloque_elimina_cupos_futuros_libres(self):
+        a = self.agenda(dia=(self.hoy.weekday() + 1) % 7)
+        self.servicio.generar_cupos(a, self.hoy, self.hoy + timedelta(days=13), self.admin)
+        self.servicio.quitar_bloque(a, self.admin)
+        a.refresh_from_db()
+        self.assertFalse(a.activa)
+        self.assertFalse(Cupo.objects.filter(fecha__gt=self.hoy).exists())
+
 
 class AgendaVistasTests(AgendaBase):
     def test_paginas_de_agenda(self):
-        a = self.agenda()
+        self.agenda()
         self.client.force_login(self.admin)
-        for url in [reverse("agenda:lista"), reverse("agenda:crear"), reverse("agenda:detalle", args=[a.pk]),
-                    reverse("profesionales:lista"), reverse("profesionales:especialidades"),
-                    reverse("profesionales:policlinicos")]:
-            self.assertEqual(self.client.get(url).status_code, 200, url)
+        for url in [reverse("agenda:horario"), reverse("agenda:calendario"), reverse("profesionales:lista"),
+                    reverse("profesionales:catalogo")]:
+            self.assertEqual(self.client.get(url, {"profesional": self.prof.pk}).status_code, 200, url)
 
-    def test_crear_agenda_y_generar_por_formulario(self):
+    def test_agregar_bloque_semanal_por_formulario(self):
         self.client.force_login(self.admin)
-        resp = self.client.post(reverse("agenda:crear"), {
-            "profesional": self.prof.pk, "policlinico": self.pol.pk, "dia_semana": self.hoy.weekday(),
-            "hora_inicio": "15:00", "hora_fin": "16:00", "vigente_desde": self.hoy.isoformat(),
-            "activa": "on", "generar_semanas": 2,
-        })
-        a = Agenda.objects.get()
-        self.assertRedirects(resp, reverse("agenda:detalle", args=[a.pk]))
-        self.assertEqual(a.cupos.count(), 2 * 3)  # hoy, +7, +14
+        manana = (self.hoy.weekday() + 1) % 7
+        resp = self.client.post(reverse("agenda:horario"), {
+            "profesional": self.prof.pk, "dia_semana": manana if manana < 6 else 0,
+            "policlinico": self.pol.pk, "hora_inicio": "20:00", "hora_fin": "21:00"})
+        self.assertRedirects(resp, reverse("agenda:horario") + f"?profesional={self.prof.pk}")
+        self.assertEqual(Agenda.objects.count(), 1)
+        self.assertTrue(Cupo.objects.exists())
 
-    def test_tens_no_gestiona_agendas(self):
+    def test_bloque_solapado_muestra_error(self):
+        self.agenda(dia=0, hi="09:00", hf="12:00")
+        self.client.force_login(self.admin)
+        resp = self.client.post(reverse("agenda:horario"), {
+            "profesional": self.prof.pk, "dia_semana": 0, "policlinico": self.pol.pk,
+            "hora_inicio": "10:00", "hora_fin": "11:00"})
+        self.assertContains(resp, "No se guardó")
+        self.assertEqual(Agenda.objects.count(), 1)
+
+    def test_tens_bloquea_desde_el_calendario_pero_no_define_horario(self):
+        a = self.agenda(dia=(self.hoy.weekday() + 1) % 7)
+        self.servicio.generar_cupos(a, self.hoy, self.hoy + timedelta(days=7), self.admin)
+        cupo = Cupo.objects.first()
         self.client.force_login(self.tens)
-        self.assertEqual(self.client.get(reverse("agenda:lista")).status_code, 403)
+        self.client.post(reverse("agenda:calendario_accion"), {"cupo": [cupo.pk], "accion": "bloquear"})
+        cupo.refresh_from_db()
+        self.assertTrue(cupo.bloqueado)
+        self.client.post(reverse("agenda:horario"), {"profesional": self.prof.pk, "dia_semana": 0,
+                                                     "policlinico": self.pol.pk, "hora_inicio": "20:00",
+                                                     "hora_fin": "21:00"})
+        self.assertEqual(Agenda.objects.count(), 1)
+        self.assertEqual(self.client.get(reverse("profesionales:lista")).status_code, 403)

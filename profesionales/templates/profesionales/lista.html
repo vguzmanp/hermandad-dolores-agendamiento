@@ -1,38 +1,58 @@
 {% extends "base.html" %}
 {% block titulo %}Profesionales{% endblock %}
 {% block contenido %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h3 mb-0">Profesionales</h1>
-  <a class="btn btn-hd" href="{% url 'profesionales:crear' %}">+ Nuevo profesional</a>
-</div>
-<form class="row g-2 mb-3" method="get">
-  <div class="col-md-4">
-    <select name="especialidad" class="form-select" onchange="this.form.submit()">
-      <option value="">Todas las especialidades</option>
-      {% for e in especialidades %}<option value="{{ e.pk }}" {% if esp_sel == e.pk|stringformat:"s" %}selected{% endif %}>{{ e.nombre }}</option>{% endfor %}
-    </select>
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+  <div>
+    <h1 class="titulo-pagina">Profesionales</h1>
+    <p class="subtitulo">Registra a los profesionales, define su horario semanal y controla qué horas se pueden agendar.</p>
   </div>
-</form>
-<div class="card shadow-sm"><div class="table-responsive">
-<table class="table table-hover mb-0">
-  <thead class="table-light"><tr><th>Nombre</th><th>RUT</th><th>Especialidad</th><th>Policlínicos (vía agenda)</th><th>Usuario</th><th>Estado</th><th></th></tr></thead>
+  <a class="btn btn-primary btn-lg-hd" href="?nuevo=1">+ Agregar profesional</a>
+</div>
+<div class="segmento mb-4">
+  {% for etiqueta, url, clave in tabs %}<a href="{{ url }}" class="{% if clave == tab %}activo{% endif %}">{{ etiqueta }}</a>{% endfor %}
+</div>
+
+<div class="tabla-hd"><div class="table-responsive"><table class="table">
+  <thead><tr><th>Profesional</th><th>Especialidad</th><th>Policlínicos</th><th>Horas por semana</th><th>Citas futuras</th><th>Estado</th><th>Acciones</th></tr></thead>
   <tbody>
-  {% for p in profesionales %}
+  {% for f in filas %}
   <tr>
-    <td>{{ p.nombre }}</td>
-    <td class="text-nowrap">{{ p.rut }}</td>
-    <td>{{ p.especialidad }}</td>
-    <td class="small">{% for pol in p.policlinicos %}{{ pol.nombre }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="text-muted">Sin agenda</span>{% endfor %}</td>
-    <td>{{ p.usuario.username|default:"—" }}</td>
-    <td>{% if p.activo %}<span class="badge text-bg-success">Activo</span>{% else %}<span class="badge text-bg-secondary">Inactivo</span>{% endif %}</td>
-    <td class="text-end text-nowrap">
-      <a class="btn btn-sm btn-outline-primary" href="{% url 'agenda:lista' %}?profesional={{ p.pk }}">Agendas</a>
-      <a class="btn btn-sm btn-outline-secondary" href="{% url 'profesionales:editar' p.pk %}">Editar</a>
+    <td class="celda-principal">{{ f.p.nombre }}</td>
+    <td>{{ f.p.especialidad }}</td>
+    <td class="small">{{ f.policlinicos|join:", "|default:"—" }}</td>
+    <td>{{ f.horas }} h</td>
+    <td>{{ f.p.citas_futuras }}</td>
+    <td>{% if f.p.activo %}<span class="pill pill-verde">Activo</span>{% else %}<span class="pill pill-gris">Inactivo</span>{% endif %}</td>
+    <td class="text-nowrap">
+      <a class="btn btn-suave btn-xs {% if not f.p.activo %}disabled opacity-50{% endif %}" href="{% url 'agenda:horario' %}?profesional={{ f.p.pk }}">Horario</a>
+      <a class="btn btn-gris btn-xs" href="?editar={{ f.p.pk }}">Editar</a>
+      <form method="post" action="{% url 'profesionales:activar' f.p.pk %}" class="d-inline">{% csrf_token %}
+        {% if f.p.activo %}<button class="btn btn-suave-rojo btn-xs">Desactivar</button>{% else %}<button class="btn btn-verde btn-xs">Activar</button>{% endif %}
+      </form>
     </td>
   </tr>
-  {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No hay profesionales.</td></tr>
+  {% empty %}<tr><td colspan="7" class="text-center text-gris py-4">No hay profesionales.</td></tr>
   {% endfor %}
   </tbody>
-</table>
-</div></div>
+</table></div></div>
+<p class="small text-gris mt-2">Un profesional inactivo deja de aparecer para agendar. Sus citas ya agendadas se mantienen.</p>
+
+<div class="modal fade" id="modalProfesional" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body">
+    <h2 class="h4 mb-1">{% if editar %}Editar profesional{% else %}Agregar profesional{% endif %}</h2>
+    <p class="text-gris">{% if editar %}Cambia el nombre, el RUT o la especialidad.{% else %}Después de guardarlo, define su horario semanal.{% endif %}</p>
+    <form method="post" novalidate>
+      {% csrf_token %}{% if editar %}<input type="hidden" name="pk" value="{{ editar.pk }}">{% endif %}
+      {% include "includes/campo.html" with campo=form.nombre %}
+      {% include "includes/campo.html" with campo=form.rut %}
+      {% include "includes/campo.html" with campo=form.especialidad %}
+      {% include "includes/campo.html" with campo=form.usuario %}
+      <div class="d-flex justify-content-end gap-2">
+        <a class="btn btn-gris btn-lg-hd" href="{% url 'profesionales:lista' %}">Cancelar</a>
+        <button class="btn btn-primary btn-lg-hd">Guardar</button>
+      </div>
+    </form>
+  </div></div></div>
+</div>
 {% endblock %}
+{% block scripts %}{% if abrir_modal %}<script>new bootstrap.Modal(document.getElementById("modalProfesional")).show();</script>{% endif %}{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base_publico.html" %}
+{% block titulo %}Lista de espera{% endblock %}
+{% block cuerpo %}
+<div class="tarjeta tarjeta-cuerpo">
+  <div class="d-flex align-items-center gap-3 mb-3">
+    <div class="icono-ok">{% include "includes/icono.html" with n="check" t=26 %}</div>
+    <div><h1 class="titulo-pagina mb-0">Quedaste en la lista de espera</h1>
+      <div class="text-gris">Te contactaremos cuando se libere una hora{% if especialidad %} en {{ especialidad }}{% endif %}.</div></div>
+  </div>
+  <a class="btn btn-primary btn-lg-hd" href="{% url 'portal:inicio' %}">Reservar otra hora</a>
+</div>
+{% endblock %}

@@ -67,7 +67,7 @@ class AgendaService:
 
     @transaction.atomic
     def bloquear_cupo(self, cupo: Cupo, motivo: str, usuario) -> Cupo:
-        roles.exigir_rol(usuario, roles.ADMINISTRACION)
+        roles.exigir_rol(usuario, roles.ADMINISTRACION, roles.TENS)
         # Se bloquea la fila para que no se agende una cita mientras se bloquea el cupo.
         cupo = Cupo.objects.select_for_update().get(pk=cupo.pk)
         if cupo.citas_vigentes:
@@ -79,7 +79,7 @@ class AgendaService:
         return self.cupos.guardar(cupo)
 
     def liberar_cupo(self, cupo: Cupo, usuario) -> Cupo:
-        roles.exigir_rol(usuario, roles.ADMINISTRACION)
+        roles.exigir_rol(usuario, roles.ADMINISTRACION, roles.TENS)
         cupo.bloqueado = False
         cupo.motivo_bloqueo = ""
         return self.cupos.guardar(cupo)
@@ -99,3 +99,58 @@ class AgendaService:
             self.cupos.guardar(cupo)
             bloqueados += 1
         return bloqueados, omitidos
+
+    # ----------------------------------------------- operaciones por lote
+    def bloquear_varios(self, cupos, motivo: str, usuario) -> tuple[int, int]:
+        """Bloquea los cupos seleccionados. Los que tienen cita siguen ocupados (no se bloquean)."""
+        roles.exigir_rol(usuario, roles.ADMINISTRACION, roles.TENS)
+        bloqueados = omitidos = 0
+        for cupo in cupos:
+            if cupo.bloqueado:
+                continue
+            try:
+                self.bloquear_cupo(cupo, motivo, usuario)
+                bloqueados += 1
+            except ReglaNegocioError:
+                omitidos += 1
+        return bloqueados, omitidos
+
+    def liberar_varios(self, cupos, usuario, maximo: int | None = None) -> int:
+        """Libera los cupos bloqueados seleccionados; «de a poco» = como máximo `maximo` por vez."""
+        roles.exigir_rol(usuario, roles.ADMINISTRACION, roles.TENS)
+        bloqueados = sorted((c for c in cupos if c.bloqueado), key=lambda c: (c.fecha, c.hora_inicio))
+        if maximo:
+            bloqueados = bloqueados[:maximo]
+        for cupo in bloqueados:
+            self.liberar_cupo(cupo, usuario)
+        return len(bloqueados)
+
+    @transaction.atomic
+    def agregar_bloque(self, agenda: Agenda, usuario, semanas: int | None = None) -> tuple[Agenda, int]:
+        """Crea el bloque semanal y genera sus cupos para las próximas semanas."""
+        agenda = self.guardar_agenda(agenda, usuario)
+        hoy = timezone.localdate()
+        n = self.generar_cupos(agenda, hoy, hoy + timedelta(weeks=semanas or settings.AGENDA_SEMANAS_GENERACION), usuario)
+        return agenda, n
+
+    @transaction.atomic
+    def quitar_bloque(self, agenda: Agenda, usuario) -> int:
+        """
+        Desactiva el bloque semanal. Sus cupos futuros sin citas se eliminan; los que
+        tienen citas se mantienen (las citas siguen vigentes) pero quedan bloqueados.
+        """
+        roles.exigir_rol(usuario, roles.ADMINISTRACION)
+        hoy = timezone.localdate()
+        agenda.activa = False
+        agenda.vigente_hasta = hoy
+        agenda.save()
+        eliminados = 0
+        for cupo in Cupo.objects.select_for_update().filter(agenda=agenda, fecha__gt=hoy):
+            if cupo.citas.exists():
+                if not cupo.citas.filter(estado__in=["agendada", "confirmada", "sin_respuesta"]).exists():
+                    cupo.bloqueado, cupo.motivo_bloqueo = True, "Bloque semanal eliminado"
+                    cupo.save()
+            else:
+                cupo.delete()
+                eliminados += 1
+        return eliminados

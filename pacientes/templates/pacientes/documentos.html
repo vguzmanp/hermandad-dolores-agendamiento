@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% load hd %}
+{% block titulo %}Documentos del paciente{% endblock %}
+{% block contenido %}
+<h1 class="titulo-pagina mb-3">Documentos del paciente</h1>
+{% if not paciente %}
+<p class="subtitulo">Busca al paciente para ver y adjuntar sus documentos.</p>
+<form method="get" class="d-flex gap-2 mb-3" style="max-width: 560px">
+  <input class="form-control" name="q" value="{{ q }}" placeholder="Nombre o RUT…" autofocus>
+  <button class="btn btn-primary">Buscar</button>
+</form>
+<div class="tabla-hd" style="max-width: 760px"><table class="table">
+  <thead><tr><th>Nombre</th><th>RUT</th><th>Fecha nac.</th><th></th></tr></thead>
+  <tbody>
+  {% for p in resultados %}
+  <tr><td class="celda-principal">{{ p.nombre }}</td><td>{{ p.rut|rut }}</td><td>{{ p.fecha_nacimiento|date:"d/m/Y" }}</td>
+      <td class="text-end"><a class="btn btn-suave btn-xs" href="?paciente={{ p.pk }}">Ver documentos</a></td></tr>
+  {% empty %}<tr><td colspan="4" class="text-center text-gris py-3">Sin resultados.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+<div class="tarjeta-gris px-3 py-2 mb-3 d-flex flex-wrap gap-4 small">
+  <span><strong>Paciente:</strong> {{ paciente.nombre }}</span>
+  <span><strong>RUT:</strong> {{ paciente.rut|rut }}</span>
+  <span><strong>Fecha de nacimiento:</strong> {{ paciente.fecha_nacimiento|date:"d/m/Y" }}</span>
+  <a href="{% url 'documentos:lista' %}">Cambiar paciente</a>
+</div>
+{% if not paciente.inscrito_cesfam %}
+<div class="aviso aviso-naranjo mb-4"><strong>Falta la inscripción al CESFAM</strong><div class="small">Avisa al paciente: es indispensable para una eventual derivación (RN-05).</div></div>
+{% endif %}
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="tarjeta tarjeta-cuerpo h-100">
+      <h2 class="h5 mb-3">Adjuntar documento</h2>
+      <form method="post" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="paciente" value="{{ paciente.pk }}">
+        {% include "includes/campo.html" with campo=form.tipo %}
+        <div class="form-text mt-n2 mb-3" id="ayudaTipo">La inscripción al CESFAM es indispensable para una eventual derivación.</div>
+        <label class="form-label">Archivo <span class="req">*</span></label>
+        <div class="zona-archivo mb-1">{{ form.archivo }}</div>
+        {% for e in form.archivo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        <div class="form-text mb-3">PDF, JPG o PNG.</div>
+        <button class="btn btn-primary w-100 btn-lg-hd">Adjuntar documento</button>
+      </form>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="tarjeta h-100">
+      <h2 class="h5 p-4 pb-2 mb-0">Documentos cargados</h2>
+      <div class="table-responsive"><table class="table mb-0">
+        <thead class="table-light"><tr><th class="ps-4">Nombre</th><th>Tipo</th><th>Fecha carga</th><th>Acciones</th></tr></thead>
+        <tbody>
+        {% for d in docs %}
+        <tr>
+          <td class="ps-4"><div class="celda-principal">{{ d.nombre }}</div><div class="celda-sec">{{ d.tamano_legible }}{% if not d.subido_por %} · subido por el paciente{% endif %}</div></td>
+          <td>{{ d.get_tipo_display }}</td>
+          <td>{{ d.subido_en|date:"d/m/Y" }}</td>
+          <td class="text-nowrap">
+            <button class="btn btn-suave btn-xs" data-bs-toggle="modal" data-bs-target="#modalDoc" data-url="{% url 'documentos:archivo' d.pk %}"
+                    data-titulo="{{ d.get_tipo_display }}" data-detalle="{{ paciente.nombre }} · {{ d.nombre }} · cargado el {{ d.subido_en|date:'d/m/Y' }}">Ver</button>
+            <form method="post" action="{% url 'documentos:eliminar' d.pk %}" class="d-inline" data-confirmar="¿Eliminar {{ d.nombre }}?">{% csrf_token %}<button class="btn btn-suave-rojo btn-xs">Eliminar</button></form>
+          </td>
+        </tr>
+        {% empty %}<tr><td colspan="4" class="text-center text-gris py-4">Sin documentos.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+
+<h2 class="h5 mt-4">Historial de operaciones <span class="text-gris fw-normal small">· quién hizo qué y cuándo</span></h2>
+<div class="tabla-hd"><div class="table-responsive"><table class="table">
+  <thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Acción</th><th>Detalle</th></tr></thead>
+  <tbody>
+  {% for o in historial %}
+  <tr><td class="small">{{ o.fecha|date:"Y-m-d H:i" }}</td><td class="small">{{ o.quien }}</td><td class="small">{{ o.get_accion_display }}</td><td class="small">{{ o.detalle }}</td></tr>
+  {% empty %}<tr><td colspan="4" class="text-center text-gris py-3">Sin operaciones.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div></div>
+
+<div class="modal fade" id="modalDoc" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><div class="modal-body">
+    <h2 class="h4 mb-1" id="docTitulo"></h2>
+    <p class="text-gris" id="docDetalle"></p>
+    <iframe id="docFrame" title="Documento" style="width:100%; height:440px; border:0; border-radius:10px; background:#e9edf4"></iframe>
+    <div class="text-end mt-3"><button class="btn btn-primary btn-lg-hd" data-bs-dismiss="modal">Cerrar</button></div>
+  </div></div></div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+const m = document.getElementById("modalDoc");
+if (m) {
+  m.addEventListener("show.bs.modal", e => {
+    const b = e.relatedTarget;
+    document.getElementById("docTitulo").textContent = b.dataset.titulo;
+    document.getElementById("docDetalle").textContent = b.dataset.detalle;
+    document.getElementById("docFrame").src = b.dataset.url;
+  });
+  m.addEventListener("hidden.bs.modal", () => { document.getElementById("docFrame").src = "about:blank"; location.reload(); });
+}
+const tipo = document.getElementById("id_tipo"), ayuda = document.getElementById("ayudaTipo");
+if (tipo && ayuda) { const f = () => ayuda.classList.toggle("d-none", tipo.value !== "cesfam"); tipo.addEventListener("change", f); f(); }
+</script>
+{% endblock %}

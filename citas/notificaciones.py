@@ -1,69 +1,143 @@
 """
 Notificaciones a pacientes.
 
-WhatsApp NO se integra en el MVP: se define la interfaz INotificador y una
-implementación NotificadorLog que guarda cada mensaje en la base de datos para
-mostrarlo en la pantalla "Mensajes enviados". Para integrar WhatsApp a futuro
-basta con otra implementación de INotificador (p. ej. NotificadorWhatsApp).
-"""
-from abc import ABC, abstractmethod
+WhatsApp y el correo NO se integran en el MVP: INotificador define el contrato y
+NotificadorLog guarda cada mensaje en la base de datos (pantalla «Avisos enviados»).
+El aviso se envía por WhatsApp y, si el paciente tiene correo (RN-03, opcional),
+también por correo. Ambos traen el link /c/<código>/ para responder.
 
+Para demostrar los «avisos con falla», NotificadorLog marca como no enviado el
+WhatsApp cuando el celular no es un móvil chileno válido (+56 9 XXXX XXXX).
+Para integrar WhatsApp real bastaría otra implementación de INotificador.
+"""
+import re
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+from django.conf import settings
+
+from core.fechas import fecha_larga
 from pacientes.models import Paciente
 
 from .models import Cita, MensajeEnviado
 
+Tipo = MensajeEnviado.Tipo
+
+
+@dataclass
+class Aviso:
+    tipo: str
+    whatsapp: str
+    asunto: str
+    correo: str
+
 
 class INotificador(ABC):
     @abstractmethod
-    def enviar(self, paciente: Paciente, mensaje: str, tipo: str, cita: Cita | None = None, usuario=None):
-        """Envía un mensaje al paciente (o a su adulto responsable)."""
+    def enviar(self, paciente: Paciente, aviso: Aviso, cita: Cita | None = None, usuario=None) -> list:
+        """Envía el aviso al paciente (o a su adulto responsable). Devuelve los envíos realizados."""
+
+
+def celular_valido(celular: str) -> bool:
+    digitos = re.sub(r"\D", "", celular or "")
+    return bool(re.fullmatch(r"(56)?9\d{8}", digitos))
 
 
 class NotificadorLog(INotificador):
-    def enviar(self, paciente, mensaje, tipo, cita=None, usuario=None) -> MensajeEnviado:
-        return MensajeEnviado.objects.create(
-            paciente=paciente, cita=cita, destinatario=destinatario(paciente),
-            tipo=tipo, mensaje=mensaje, enviado_por=usuario,
-        )
+    def enviar(self, paciente, aviso, cita=None, usuario=None):
+        nombre, celular = contacto(paciente)
+        envios = [MensajeEnviado.objects.create(
+            paciente=paciente, cita=cita, destinatario=f"{nombre} · {celular}",
+            canal=MensajeEnviado.Canal.WHATSAPP,
+            estado=MensajeEnviado.Estado.ENVIADO if celular_valido(celular) else MensajeEnviado.Estado.FALLIDO,
+            tipo=aviso.tipo, mensaje=aviso.whatsapp, enviado_por=usuario,
+        )]
+        if paciente.correo:
+            envios.append(MensajeEnviado.objects.create(
+                paciente=paciente, cita=cita, destinatario=paciente.correo, canal=MensajeEnviado.Canal.CORREO,
+                tipo=aviso.tipo, asunto=aviso.asunto, mensaje=aviso.correo, enviado_por=usuario,
+            ))
+        return envios
 
 
-def destinatario(paciente: Paciente) -> str:
-    """Si corresponde adulto responsable (RN-04), el mensaje va dirigido a él/ella."""
+def contacto(paciente: Paciente) -> tuple[str, str]:
+    """Si corresponde adulto responsable (RN-04), el WhatsApp va dirigido a él/ella."""
     resp = getattr(paciente, "adulto_responsable", None) if paciente.necesita_responsable else None
     if resp:
-        return f"{resp.nombre} ({resp.parentesco}) · {resp.celular}"
-    return f"{paciente.nombre} · {paciente.celular}"
+        return f"{resp.nombre} ({resp.parentesco})", resp.celular
+    return paciente.nombre, paciente.celular
 
 
 # ------------------------------------------------------------------ plantillas
-def _detalle(cita: Cita) -> str:
-    c = cita.cupo
-    lugar = "por videollamada (Telemedicina)" if c.agenda.policlinico.es_telemedicina else f"en {c.agenda.policlinico.nombre}"
-    return (f"{c.fecha:%d/%m/%Y} a las {c.hora_inicio:%H:%M} con {c.agenda.profesional.nombre} "
-            f"({c.agenda.profesional.especialidad.nombre}) {lugar}")
+def link_cita(cita: Cita) -> str:
+    return f"{settings.SITIO_PUBLICO_URL.rstrip('/')}/c/{cita.token}"
 
 
-def mensaje_agendamiento(citas: list[Cita]) -> str:
-    p = citas[0].paciente
+def _primer_nombre(paciente: Paciente) -> str:
+    return paciente.nombre.split()[0]
+
+
+def _quien(cita: Cita) -> str:
+    prof = cita.cupo.agenda.profesional
+    return f"{prof.especialidad.nombre} con {prof.nombre}"
+
+
+def _lugar(cita: Cita) -> str:
+    pol = cita.cupo.agenda.policlinico
+    return "por videollamada (Telemedicina)" if pol.es_telemedicina else f"en el {pol.nombre}"
+
+
+def _cuando(cita: Cita) -> str:
+    return f"{fecha_larga(cita.cupo.fecha)} a las {cita.cupo.hora_inicio:%H:%M}"
+
+
+def _ficha(cita: Cita) -> str:
+    prof = cita.cupo.agenda.profesional
+    return (f"Especialidad: {prof.especialidad.nombre}\nProfesional: {prof.nombre}\n"
+            f"Policlínico: {cita.cupo.agenda.policlinico.nombre}\n"
+            f"Fecha y hora: {fecha_larga(cita.cupo.fecha).capitalize()} · {cita.cupo.hora_inicio:%H:%M}")
+
+
+def aviso_agendamiento(citas: list[Cita]) -> Aviso:
+    c = citas[0]
+    nombre = _primer_nombre(c.paciente)
     if len(citas) == 1:
-        cuerpo = f"se agendó su cita para el {_detalle(citas[0])}."
+        detalle = f"tu hora de {_quien(c)} quedó reservada para el {_cuando(c)} {_lugar(c)}."
     else:
-        lineas = "\n".join(f"  {i}. {_detalle(c)}" for i, c in enumerate(citas, 1))
-        cuerpo = f"se agendaron {len(citas)} sesiones:\n{lineas}"
-    sobre = " (sobrecupo)" if citas[0].es_sobrecupo else ""
-    return (f"Hermandad de Dolores: Hola {p.nombre.split()[0]}, {cuerpo}{sobre}\n"
-            f"Le enviaremos un recordatorio {citas[0].dias_aviso} días antes para confirmar su asistencia.")
+        lineas = "\n".join(f"{i}. {fecha_larga(x.cupo.fecha)} a las {x.cupo.hora_inicio:%H:%M}"
+                           for i, x in enumerate(citas, 1))
+        detalle = f"se reservaron {len(citas)} sesiones de {_quien(c)} {_lugar(c)}:\n{lineas}"
+    whatsapp = (f"Hola {nombre}, {detalle}\n\nTe enviaremos un recordatorio {c.dias_aviso} días antes para "
+                f"confirmar tu asistencia. Para cambiar o cancelar: {link_cita(c)}")
+    correo = (f"Hola {nombre}:\n\nTu hora quedó reservada.\n\n{_ficha(c)}\n\n"
+              f"Recuerda traer tu certificado de FONASA y la inscripción al CESFAM.\n"
+              f"Para cambiar o cancelar tu hora: {link_cita(c)}")
+    return Aviso(Tipo.AGENDAMIENTO, whatsapp, f"Hora reservada para el {fecha_larga(c.cupo.fecha)}", correo)
 
 
-def mensaje_recordatorio(cita: Cita) -> str:
-    return (f"Hermandad de Dolores: Recordatorio de su cita el {_detalle(cita)}.\n"
-            f"Responda 1 para CONFIRMAR o 2 para CANCELAR.")
+def aviso_recordatorio(cita: Cita) -> Aviso:
+    nombre = _primer_nombre(cita.paciente)
+    whatsapp = (f"Hola {nombre}, te recordamos tu hora de {_quien(cita)} el {_cuando(cita)}.\n\n"
+                f"Por favor confirma si asistirás, o cambia o cancela tu hora aquí:\n{link_cita(cita)}")
+    correo = (f"Hola {nombre}:\n\nTe recordamos que tienes una hora agendada. Por favor confírmanos si podrás asistir."
+              f"\n\n{_ficha(cita)}\n\nConfirmar o cambiar mi hora: {link_cita(cita)}\n"
+              f"Si no respondes, la cita queda como «sin respuesta» y te llamaremos.")
+    return Aviso(Tipo.RECORDATORIO, whatsapp, f"Confirma tu hora del {fecha_larga(cita.cupo.fecha)}", correo)
 
 
-def mensaje_confirmacion(cita: Cita) -> str:
-    return f"Hermandad de Dolores: Su asistencia a la cita del {_detalle(cita)} quedó CONFIRMADA. ¡Le esperamos!"
+def aviso_confirmacion(cita: Cita) -> Aviso:
+    texto = f"Asistencia confirmada. Te esperamos el {_cuando(cita)} ({_quien(cita)})."
+    return Aviso(Tipo.CONFIRMACION, f"Hola {_primer_nombre(cita.paciente)}. {texto}", "Asistencia confirmada",
+                 f"{texto}\n\nRecuerda traer tu certificado de FONASA y la inscripción al CESFAM.")
 
 
-def mensaje_cancelacion(cita: Cita) -> str:
-    return (f"Hermandad de Dolores: Su cita del {_detalle(cita)} fue CANCELADA. "
-            f"Si necesita reagendar, comuníquese con nosotros.")
+def aviso_cancelacion(cita: Cita) -> Aviso:
+    texto = (f"Tu hora del {_cuando(cita)} ({_quien(cita)}) fue cancelada y quedó libre para otro paciente. "
+             f"Si necesitas atención, puedes reservar una nueva hora.")
+    return Aviso(Tipo.CANCELACION, f"Hola {_primer_nombre(cita.paciente)}. {texto}", "Hora cancelada", texto)
+
+
+def aviso_cambio(cita: Cita) -> Aviso:
+    texto = f"Tu nueva hora es el {_cuando(cita)} con {cita.cupo.agenda.profesional.nombre}."
+    return Aviso(Tipo.CAMBIO, f"Hola {_primer_nombre(cita.paciente)}. {texto}\n{link_cita(cita)}", "Hora cambiada",
+                 f"{texto}\n\n{_ficha(cita)}\n\n{link_cita(cita)}")

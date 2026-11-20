@@ -1,0 +1,44 @@
+{% extends "base_publico.html" %}
+{% load hd %}
+{% block titulo %}Avisos de confirmación{% endblock %}
+{% block subtitulo_cabecera %}Confirmación de hora · sin cuenta ni clave{% endblock %}
+{% block derecha_cabecera %}{% endblock %}
+{% block cuerpo %}
+<h1 class="titulo-pagina">Avisos de confirmación</h1>
+<p class="subtitulo">{{ cita.dias_aviso }} días antes de la cita, el sistema envía el mismo aviso por WhatsApp y por correo. Los dos traen un link para responder. <span class="small">(Simulación: así se verían.)</span></p>
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="small-label mb-2">1 · WhatsApp</div>
+    <div class="wa">
+      <div class="wa-cab"><div class="av">HD</div><div><div class="fw-semibold">Hermandad de Dolores</div><div class="small opacity-75">Mensaje automático</div></div></div>
+      <div class="wa-cuerpo">
+        <div class="wa-burbuja">Hola {{ cita.paciente.nombre|primer_nombre }}, te recordamos tu hora de <strong>{{ cita.cupo.agenda.profesional.especialidad }}</strong> con {{ cita.cupo.agenda.profesional.nombre }} el <strong>{{ cita.cupo.fecha|fecha_larga }} a las {{ cita.cupo.hora_inicio|time:"H:i" }}</strong>.
+
+Por favor confirma si asistirás, o cambia o cancela tu hora aquí:
+<a href="{% url 'portal:responder' cita.token %}">{{ link }}</a>
+          <div class="wa-hora">18:00</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="small-label mb-2">2 · Correo electrónico</div>
+    <div class="mail">
+      <div class="mail-cab"><div class="fw-bold fs-5">{{ aviso.asunto|capfirst }}</div>
+        <div class="small text-gris">De: Hermandad de Dolores · Para: {% if cita.paciente.correo %}{{ cita.paciente.correo|enmascarar_correo }}{% else %}(el paciente no registró correo){% endif %}</div></div>
+      <div class="mail-cuerpo">
+        <div class="mail-banda">Hermandad de Dolores</div>
+        <p>Hola {{ cita.paciente.nombre|primer_nombre }}:</p>
+        <p>Te recordamos que tienes una hora agendada. Por favor confírmanos si podrás asistir.</p>
+        <div class="mail-datos">
+          <div><strong>Especialidad:</strong> {{ cita.cupo.agenda.profesional.especialidad }}</div>
+          <div><strong>Policlínico:</strong> {{ cita.cupo.agenda.policlinico }}</div>
+          <div><strong>Profesional:</strong> {{ cita.cupo.agenda.profesional.nombre }}</div>
+          <div><strong>Fecha y hora:</strong> {{ cita.cupo.fecha|fecha_larga|capfirst }} · {{ cita.cupo.hora_inicio|time:"H:i" }}</div>
+        </div>
+        <a class="btn btn-primary btn-lg-hd" href="{% url 'portal:responder' cita.token %}">Confirmar o cambiar mi hora</a>
+        <div class="small text-gris mt-3">O abre este link: <a href="{% url 'portal:responder' cita.token %}">{{ link }}</a><br>Si no respondes, la cita queda como «sin respuesta» y te llamaremos.</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

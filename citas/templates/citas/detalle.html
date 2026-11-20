@@ -1,84 +1,62 @@
 {% extends "base.html" %}
+{% load hd %}
 {% block titulo %}Cita{% endblock %}
 {% block contenido %}
 <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
   <div>
-    <h1 class="h3 mb-1">Cita de {{ cita.paciente.nombre }}</h1>
-    {% include "citas/_estado.html" with c=cita %}
+    <h1 class="titulo-pagina">Cita de {{ cita.paciente.nombre }}</h1>
+    <div>{% pill_cita cita %} <span class="small text-gris ms-2">Código del aviso: <code>{{ cita.token }}</code></span></div>
   </div>
-  <a class="btn btn-link" href="{% url 'citas:lista' %}">Volver al listado</a>
+  <div class="d-flex gap-2">
+    {% if puede_operar %}<a class="btn btn-suave" href="{% url 'citas:agendar' %}?paciente={{ cita.paciente.pk }}">Citas del paciente</a>{% endif %}
+    <a class="btn btn-gris" href="javascript:history.back()">Volver</a>
+  </div>
 </div>
 
-{% if cita.estado == "sin_respuesta" and puede_operar and not otras_del_cupo %}
-<div class="alert alert-warning d-flex justify-content-between align-items-center">
-  <span>El paciente no ha respondido. Este cupo admite <strong>un sobrecupo</strong> (RN-07).</span>
-  <a class="btn btn-warning btn-sm" href="{% url 'citas:sobrecupo' cita.cupo.pk %}">Agendar sobrecupo</a>
-</div>
-{% endif %}
-
-<div class="row g-3">
+<div class="row g-4">
   <div class="col-lg-7">
-    <div class="card shadow-sm h-100">
-      <div class="card-header">Detalle</div>
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-4">Paciente</dt>
-          <dd class="col-sm-8">{% if puede_operar %}<a href="{% url 'pacientes:detalle' cita.paciente.pk %}">{{ cita.paciente.nombre }}</a>{% else %}{{ cita.paciente.nombre }}{% endif %} · {{ cita.paciente.rut_formateado }}</dd>
-          <dt class="col-sm-4">Fecha y hora</dt><dd class="col-sm-8">{{ cita.cupo.fecha|date:"l d \d\e F \d\e Y"|capfirst }}, {{ cita.cupo.hora_inicio|time:"H:i" }}–{{ cita.cupo.hora_fin|time:"H:i" }}</dd>
-          <dt class="col-sm-4">Profesional</dt><dd class="col-sm-8">{{ cita.cupo.agenda.profesional.nombre }} ({{ cita.cupo.agenda.profesional.especialidad }})</dd>
-          <dt class="col-sm-4">Policlínico</dt><dd class="col-sm-8">{{ cita.cupo.agenda.policlinico }}</dd>
-          <dt class="col-sm-4">Días de aviso</dt><dd class="col-sm-8">{{ cita.dias_aviso }} (recordatorio el {{ cita.fecha_aviso|date:"d/m/Y" }})</dd>
-          <dt class="col-sm-4">Recordatorio</dt><dd class="col-sm-8">{{ cita.recordatorio_enviado_en|date:"d/m/Y H:i"|default:"No enviado" }}</dd>
-          {% if cita.es_sobrecupo and cita.cita_original %}<dt class="col-sm-4">Sobrecupo de</dt><dd class="col-sm-8"><a href="{% url 'citas:detalle' cita.cita_original.pk %}">{{ cita.cita_original.paciente.nombre }}</a></dd>{% endif %}
-          {% if cita.observaciones %}<dt class="col-sm-4">Observaciones</dt><dd class="col-sm-8">{{ cita.observaciones }}</dd>{% endif %}
-          <dt class="col-sm-4">Agendada</dt><dd class="col-sm-8 small text-muted">{{ cita.creada_en|date:"d/m/Y H:i" }} por {{ cita.creada_por.get_full_name|default:cita.creada_por.username }}</dd>
-          {% if cita.estado == "cancelada" %}<dt class="col-sm-4">Cancelación</dt><dd class="col-sm-8 small">{{ cita.cancelada_en|date:"d/m/Y H:i" }} · {{ cita.motivo_cancelacion }}</dd>{% endif %}
-        </dl>
-      </div>
+    <div class="tarjeta tarjeta-cuerpo">
+      <dl class="row mb-0">
+        <dt class="col-sm-4">Paciente</dt><dd class="col-sm-8">{{ cita.paciente.nombre }} · RUT {{ cita.paciente.rut|rut }}</dd>
+        <dt class="col-sm-4">Fecha y hora</dt><dd class="col-sm-8">{{ cita.cupo.fecha|fecha_larga_anio }} · {{ cita.cupo.hora_inicio|time:"H:i" }}</dd>
+        <dt class="col-sm-4">Profesional</dt><dd class="col-sm-8">{{ cita.cupo.agenda.profesional.nombre }} ({{ cita.cupo.agenda.profesional.especialidad }})</dd>
+        <dt class="col-sm-4">Policlínico</dt><dd class="col-sm-8">{{ cita.cupo.agenda.policlinico }}</dd>
+        <dt class="col-sm-4">¿Cómo pidió la hora?</dt><dd class="col-sm-8">{{ cita.get_canal_display }}</dd>
+        <dt class="col-sm-4">Días de aviso</dt><dd class="col-sm-8">{{ cita.dias_aviso }} (aviso el {{ cita.fecha_aviso|date:"d/m/Y" }}) · {% include "includes/pill_aviso.html" with c=cita %}</dd>
+        {% if cita.total_sesiones > 1 %}<dt class="col-sm-4">Sesión</dt><dd class="col-sm-8">{{ cita.numero_sesion }} de {{ cita.total_sesiones }}</dd>{% endif %}
+        {% if cita.es_sobrecupo and cita.cita_original %}<dt class="col-sm-4">Sobrecupo de</dt><dd class="col-sm-8"><a href="{% url 'citas:detalle' cita.cita_original.pk %}">{{ cita.cita_original.paciente.nombre }}</a></dd>{% endif %}
+        {% if cita.observaciones %}<dt class="col-sm-4">Observaciones</dt><dd class="col-sm-8">{{ cita.observaciones }}</dd>{% endif %}
+        <dt class="col-sm-4">Agendada</dt><dd class="col-sm-8 small text-gris">{{ cita.creada_en|date:"d/m/Y H:i" }} · {% if cita.creada_por %}{{ cita.creada_por.get_full_name|default:cita.creada_por.username }}{% else %}el paciente desde la web{% endif %}</dd>
+        {% if cita.estado == "cancelada" %}<dt class="col-sm-4">Cancelación</dt><dd class="col-sm-8 small">{{ cita.cancelada_en|date:"d/m/Y H:i" }} · {{ cita.motivo_cancelacion }}</dd>{% endif %}
+        {% if cita.asistencia_registrada %}<dt class="col-sm-4">Asistencia</dt><dd class="col-sm-8">{% if cita.asistencia_registrada.asistio %}<span class="pill pill-verde">Asistió</span>{% else %}<span class="pill pill-rojo">No asistió</span>{% endif %}</dd>{% endif %}
+      </dl>
       {% if puede_operar and cita.es_vigente %}
-      <div class="card-footer">
-        <div class="small text-muted mb-2">Simular respuesta del paciente (WhatsApp no integrado):</div>
-        {% include "citas/_acciones.html" with c=cita next="" %}
+      <hr>
+      <div class="d-flex flex-wrap gap-2">
+        <form method="post" action="{% url 'citas:accion' cita.pk 'aviso' %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}"><button class="btn btn-gris btn-xs">Enviar / reintentar aviso</button></form>
+        <button class="btn btn-suave btn-xs" data-bs-toggle="modal" data-bs-target="#modalRespuesta" data-url="{% url 'citas:accion' cita.pk 'respuesta' %}" data-detalle="{{ cita.paciente.nombre }} · {{ cita.cupo.fecha|fecha_corta }} · {{ cita.cupo.hora_inicio|time:'H:i' }}">Registrar respuesta</button>
+        <a class="btn btn-suave btn-xs" href="{% url 'citas:agendar' %}?reagendar={{ cita.pk }}">Reagendar</a>
+        {% if cita.estado == "sin_respuesta" and not otras_del_cupo %}<a class="btn btn-xs btn-blanco" href="{% url 'citas:agendar' %}?especialidad={{ cita.cupo.agenda.profesional.especialidad_id }}&profesional={{ cita.cupo.agenda.profesional_id }}&fecha={{ cita.cupo.fecha|date:'Y-m-d' }}">Agendar sobrecupo en esta hora</a>{% endif %}
       </div>
       {% endif %}
     </div>
+    {% if sesiones %}
+    <h2 class="h6 mt-4">Sesiones del tratamiento</h2>
+    <div class="tabla-hd"><table class="table table-sm">
+      {% for s in sesiones %}<tr class="{% if s.pk == cita.pk %}seleccionada{% endif %}"><td>{{ s.numero_sesion }}</td><td><a href="{% url 'citas:detalle' s.pk %}">{{ s.cupo.fecha|fecha_corta }} · {{ s.cupo.hora_inicio|time:"H:i" }}</a></td><td>{% pill_cita s %}</td></tr>{% endfor %}
+    </table></div>
+    {% endif %}
+    {% if otras_del_cupo %}
+    <h2 class="h6 mt-4">Otras citas en este cupo</h2>
+    <div class="tabla-hd"><table class="table table-sm">
+      {% for o in otras_del_cupo %}<tr><td><a href="{% url 'citas:detalle' o.pk %}">{{ o.paciente.nombre }}</a></td><td>{% pill_cita o %}</td></tr>{% endfor %}
+    </table></div>
+    {% endif %}
   </div>
   <div class="col-lg-5">
-    {% if otras_del_cupo %}
-    <div class="card shadow-sm mb-3">
-      <div class="card-header">Otras citas en este cupo</div>
-      <ul class="list-group list-group-flush">
-        {% for o in otras_del_cupo %}
-        <li class="list-group-item d-flex justify-content-between"><a href="{% url 'citas:detalle' o.pk %}">{{ o.paciente.nombre }}</a> {% include "citas/_estado.html" with c=o %}</li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-    {% if sesiones %}
-    <div class="card shadow-sm mb-3">
-      <div class="card-header">Sesiones del tratamiento</div>
-      <ul class="list-group list-group-flush">
-        {% for s in sesiones %}
-        <li class="list-group-item d-flex justify-content-between {% if s.pk == cita.pk %}fw-semibold{% endif %}">
-          <a href="{% url 'citas:detalle' s.pk %}">{{ s.numero_sesion }}. {{ s.cupo.fecha|date:"D d/m/Y" }} {{ s.cupo.hora_inicio|time:"H:i" }}</a>
-          <span class="badge badge-estado-{{ s.estado }}">{{ s.get_estado_display }}</span>
-        </li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-    <div class="card shadow-sm">
-      <div class="card-header">Mensajes enviados (simulados)</div>
-      <div class="card-body">
-        {% for m in mensajes_cita %}
-        <div class="mb-3">
-          <div class="small text-muted">{{ m.enviado_en|date:"d/m/Y H:i" }} · {{ m.get_tipo_display }} → {{ m.destinatario }}</div>
-          <div class="mensaje-whatsapp small">{{ m.mensaje }}</div>
-        </div>
-        {% empty %}<p class="text-muted small mb-0">Sin mensajes.</p>
-        {% endfor %}
-      </div>
-    </div>
+    <h2 class="h6">Avisos enviados (simulados)</h2>
+    {% for m in mensajes_cita %}{% include "citas/_mensaje.html" %}{% empty %}<p class="text-gris small">Sin avisos.</p>{% endfor %}
   </div>
 </div>
+{% if puede_operar %}{% include "includes/modal_respuesta.html" %}{% endif %}
 {% endblock %}

@@ -1,88 +1,113 @@
 from django.contrib import messages
-from django.core.paginator import Paginator
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.views.decorators.clickjacking import xframe_options_sameorigin
+from django.views.decorators.http import require_POST
 
 from core import roles
 from core.exceptions import ReglaNegocioError
 
-from .forms import AdultoResponsableForm, BuscarRutForm, PacienteForm
-from .models import Paciente
-from .services import PacienteService
+from .forms import AdultoResponsableForm, DocumentoForm, PacienteForm
+from .models import DocumentoPaciente, Paciente
+from .rut import normalizar_rut
+from .services import DocumentoService, PacienteService
 
 servicio = PacienteService()
+documentos = DocumentoService()
+
+tens_o_admin = roles.rol_requerido(roles.TENS, roles.ADMINISTRACION)
 
 
-@roles.rol_requerido(roles.TENS, roles.ADMINISTRACION)
-def lista(request):
-    q = request.GET.get("q", "")
-    pagina = Paginator(servicio.buscar(q), 20).get_page(request.GET.get("page"))
-    return render(request, "pacientes/lista.html", {"pagina": pagina, "q": q})
+def _resultados(q):
+    qs = servicio.buscar(q) if q else Paciente.objects.order_by("-fecha_registro")
+    return qs[:12]
 
 
-@roles.rol_requerido(roles.TENS, roles.ADMINISTRACION)
+@tens_o_admin
+def lista(request, pk=None):
+    """Registro / edición de paciente (izquierda) y búsqueda (derecha)."""
+    instancia = get_object_or_404(Paciente, pk=pk) if pk else None
+    puede_editar = roles.tiene_rol(request.user, roles.TENS)
+    q = request.GET.get("q", "").strip()
+    form = form_resp = None
+    if puede_editar:
+        inicial = {"rut": request.GET.get("rut", "")} if instancia is None else None
+        form = PacienteForm(request.POST or None, instance=instancia, initial=inicial)
+        resp_inst = getattr(instancia, "adulto_responsable", None) if instancia else None
+        form_resp = AdultoResponsableForm(request.POST or None, instance=resp_inst)
+        if request.method == "POST" and form.is_valid():
+            paciente = form.save(commit=False)
+            necesita = paciente.necesita_responsable
+            if not necesita or form_resp.is_valid():
+                try:
+                    paciente = servicio.guardar(paciente, form_resp.save(commit=False) if necesita else None, request.user)
+                except ReglaNegocioError as e:
+                    messages.error(request, str(e))
+                else:
+                    messages.success(request, f"Paciente {paciente.nombre} guardado", extra_tags="toast")
+                    for aviso in paciente.advertencias:
+                        messages.warning(request, aviso)
+                    return redirect(reverse("pacientes:editar", args=[paciente.pk]))
+    elif request.method == "POST":
+        raise Http404
+    return render(request, "pacientes/lista.html", {
+        "form": form, "form_resp": form_resp, "paciente": instancia, "q": q, "resultados": _resultados(q),
+    })
+
+
+@tens_o_admin
 def buscar_rut(request):
-    """RF-02: se busca por RUT antes de registrar, para no duplicar pacientes."""
-    form = BuscarRutForm(request.GET or None)
-    if request.GET and form.is_valid():
-        rut = form.cleaned_data["rut"]
-        paciente = servicio.buscar_por_rut(rut)
-        if paciente:
-            messages.info(request, f"El paciente con RUT {paciente.rut_formateado} ya está registrado.")
-            return redirect("pacientes:detalle", pk=paciente.pk)
-        if roles.tiene_rol(request.user, roles.TENS):
-            messages.warning(request, "No existe un paciente con ese RUT. Complete el registro.")
-            return redirect(reverse("pacientes:crear") + f"?rut={rut}")
-        messages.warning(request, "No existe un paciente con ese RUT.")
-    return render(request, "pacientes/buscar_rut.html", {"form": form})
+    """RF-02: si el RUT existe se abre su ficha; si no, el formulario de registro con el RUT."""
+    rut = normalizar_rut(request.GET.get("rut", ""))
+    p = servicio.buscar_por_rut(rut) if rut else None
+    if p:
+        return redirect("pacientes:editar", pk=p.pk)
+    return redirect(reverse("pacientes:lista") + (f"?rut={rut}" if rut else ""))
 
 
-@roles.rol_requerido(roles.TENS, roles.ADMINISTRACION)
-def detalle(request, pk):
-    paciente = get_object_or_404(Paciente.objects.select_related("adulto_responsable"), pk=pk)
-    citas = []
-    if hasattr(paciente, "citas"):
-        citas = paciente.citas.select_related(
-            "cupo__agenda__profesional__especialidad", "cupo__agenda__policlinico"
-        ).order_by("-cupo__fecha", "-cupo__hora_inicio")[:30]
-    return render(request, "pacientes/detalle.html", {"paciente": paciente, "citas": citas})
-
-
-def _guardar(request, instancia: Paciente | None):
-    inicial = {"rut": request.GET.get("rut", "")} if instancia is None else None
-    form = PacienteForm(request.POST or None, instance=instancia, initial=inicial)
-    resp_inst = getattr(instancia, "adulto_responsable", None) if instancia else None
-    form_resp = AdultoResponsableForm(request.POST or None, instance=resp_inst)
-
+# ------------------------------------------------------------------ documentos
+@tens_o_admin
+def documentos_paciente(request):
+    pid = request.GET.get("paciente") or request.POST.get("paciente")
+    paciente = Paciente.objects.filter(pk=pid).first() if pid and pid.isdigit() else None
+    q = request.GET.get("q", "").strip()
+    if paciente is None:
+        return render(request, "pacientes/documentos.html", {"q": q, "resultados": _resultados(q)})
+    form = DocumentoForm(request.POST or None, request.FILES or None)
     if request.method == "POST" and form.is_valid():
-        paciente = form.save(commit=False)
-        necesita = paciente.necesita_responsable
-        if not necesita or form_resp.is_valid():
-            responsable = form_resp.save(commit=False) if necesita else None
-            try:
-                paciente = servicio.guardar(paciente, responsable, request.user)
-            except ReglaNegocioError as e:
-                messages.error(request, str(e))
-            else:
-                messages.success(request, f"Paciente {paciente.nombre} guardado correctamente.")
-                for aviso in paciente.advertencias:
-                    messages.warning(request, aviso)
-                return redirect("pacientes:detalle", pk=paciente.pk)
+        try:
+            documentos.adjuntar(paciente, form.cleaned_data["tipo"], form.cleaned_data["archivo"], request.user)
+        except ReglaNegocioError as e:
+            messages.error(request, str(e))
         else:
-            messages.error(request, "RN-04: complete los datos del adulto responsable.")
-
-    return render(
-        request,
-        "pacientes/form.html",
-        {"form": form, "form_resp": form_resp, "paciente": instancia},
-    )
-
-
-@roles.rol_requerido(roles.TENS)
-def crear(request):
-    return _guardar(request, None)
+            messages.success(request, "Documento adjuntado", extra_tags="toast")
+            return redirect(f"{reverse('documentos:lista')}?paciente={paciente.pk}")
+    if not form.is_bound and not paciente.inscrito_cesfam:
+        form.initial["tipo"] = DocumentoPaciente.Tipo.CESFAM
+    return render(request, "pacientes/documentos.html", {
+        "paciente": paciente, "form": form,
+        "docs": paciente.documentos.select_related("subido_por"),
+        "historial": paciente.operaciones_documentos.select_related("usuario")[:30],
+    })
 
 
-@roles.rol_requerido(roles.TENS)
-def editar(request, pk):
-    return _guardar(request, get_object_or_404(Paciente, pk=pk))
+@xframe_options_sameorigin
+@tens_o_admin
+def documento_archivo(request, pk):
+    """Muestra el archivo (dentro del modal «Ver») y registra la consulta en el historial."""
+    doc = get_object_or_404(DocumentoPaciente, pk=pk)
+    documentos.registrar_consulta(doc, request.user)
+    if not doc.archivo:
+        return render(request, "pacientes/documento_ejemplo.html", {"doc": doc})
+    return FileResponse(doc.archivo.open("rb"), filename=doc.nombre, as_attachment=False)
+
+
+@tens_o_admin
+@require_POST
+def documento_eliminar(request, pk):
+    doc = get_object_or_404(DocumentoPaciente, pk=pk)
+    pid = doc.paciente_id
+    documentos.eliminar(doc, request.user)
+    messages.success(request, "Documento eliminado", extra_tags="toast")
+    return redirect(f"{reverse('documentos:lista')}?paciente={pid}")

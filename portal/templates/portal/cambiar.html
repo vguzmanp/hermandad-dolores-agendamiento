@@ -1,0 +1,39 @@
+{% extends "base_publico.html" %}
+{% load hd %}
+{% block titulo %}Cambia tu hora{% endblock %}
+{% block subtitulo_cabecera %}Confirmación de hora · sin cuenta ni clave{% endblock %}
+{% block derecha_cabecera %}{% endblock %}
+{% block cuerpo %}
+<h1 class="titulo-pagina">Cambia tu hora</h1>
+<p class="subtitulo">Elige otro día y hora con {{ prof.nombre }}. Tu hora actual ({{ cita.cupo.fecha|fecha_larga }} · {{ cita.cupo.hora_inicio|time:"H:i" }}) se libera al confirmar el cambio.</p>
+<div class="tarjeta tarjeta-cuerpo">
+  {% if dias %}
+  <div class="fw-semibold mb-2">Días con horas disponibles</div>
+  <div class="chips mb-4">
+    {% for d in dias %}<a class="chip-dia {% if d.activo %}activo{% endif %}" style="min-width: 80px" href="?dia={{ d.fecha|date:'Y-m-d' }}"><div class="d">{{ d.texto }}</div><div class="n">{{ d.n }} hora{{ d.n|pluralize }}</div></a>{% endfor %}
+  </div>
+  <form method="post">
+    {% csrf_token %}
+    <div class="fw-semibold mb-2">Horas</div>
+    <div class="chips mb-4">
+      {% for c in horas %}<input type="radio" class="btn-check" name="cupo" id="h{{ c.pk }}" value="{{ c.pk }}" data-texto="{{ texto_dia }} {{ c.hora_inicio|time:'H:i' }}">
+      <label class="slot" for="h{{ c.pk }}" title="{{ c.agenda.policlinico }}">{{ c.hora_inicio|time:"H:i" }}</label>{% endfor %}
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-primary btn-lg-hd" id="btnCambio" disabled>Confirmar nueva hora</button>
+      <a class="btn btn-gris btn-lg-hd" href="{% url 'portal:responder' cita.token %}">Volver</a>
+    </div>
+  </form>
+  {% else %}
+  <div class="aviso aviso-naranjo mb-3">No hay otras horas disponibles con {{ prof.nombre }} en los próximos días.</div>
+  <a class="btn btn-gris btn-lg-hd" href="{% url 'portal:responder' cita.token %}">Volver</a>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll("input[name=cupo]").forEach(r => r.addEventListener("change", () => {
+  const b = document.getElementById("btnCambio"); b.disabled = false; b.textContent = "Confirmar nueva hora · " + r.dataset.texto;
+}));
+</script>
+{% endblock %}

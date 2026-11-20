@@ -11,7 +11,10 @@ from .models import Especialidad, Policlinico, Profesional
 class ProfesionalForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Profesional
-        fields = ["nombre", "rut", "especialidad", "celular", "correo", "usuario", "activo"]
+        fields = ["nombre", "rut", "especialidad", "usuario"]
+        labels = {"nombre": "Nombre y título", "usuario": "Usuario del sistema (opcional)"}
+        help_texts = {"usuario": "Para que vea sus citas y estadísticas con el rol Profesional."}
+        widgets = {"nombre": forms.TextInput(attrs={"placeholder": "Dra. Ana Torres"})}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

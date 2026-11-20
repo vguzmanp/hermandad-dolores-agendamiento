@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block titulo %}Bloquear y liberar horas{% endblock %}
+{% block contenido %}
+<h1 class="titulo-pagina">Profesionales</h1>
+<p class="subtitulo">Calendario de cupos de cada profesional: bloquea horas o libéralas de a poco.</p>
+{% include "agenda/_filtros.html" %}
+
+<form method="post" action="{% url 'agenda:calendario_accion' %}">
+  {% csrf_token %}
+  {% if esp %}<input type="hidden" name="especialidad" value="{{ esp.pk }}">{% endif %}
+  {% if prof %}<input type="hidden" name="profesional" value="{{ prof.pk }}">{% endif %}
+  <input type="hidden" name="semana" value="{{ lunes|date:'Y-m-d' }}">
+  <div class="row g-4">
+    <div class="col-xl-8">
+      <div class="tarjeta p-3 overflow-auto">
+        {% if filas %}
+        <div class="grilla-semana" style="grid-template-columns: 64px repeat({{ n_columnas }}, minmax(88px, 1fr)); min-width: 520px">
+          <div></div>{% for d, texto in dias %}<div class="cab">{{ texto }}</div>{% endfor %}
+          {% for fila in filas %}
+            <div class="hora">{{ fila.hora|time:"H:i" }}</div>
+            {% for c in fila.celdas %}
+              {% if c.cupo %}
+                {% if c.pasado %}
+                <span class="celda-cupo {{ c.estado }} pasado">{% if c.estado == "con_cita" %}Con cita{% elif c.estado == "bloqueado" %}Bloqueado{% else %}Disponible{% endif %}</span>
+                {% else %}
+                <div><input type="checkbox" class="btn-check sel-cupo" name="cupo" value="{{ c.cupo.pk }}" id="cu{{ c.cupo.pk }}"
+                       data-texto="{{ c.cupo.fecha|date:'D d M'|lower }} · {{ c.cupo.hora_inicio|time:'H:i' }}">
+                <label class="celda-cupo {{ c.estado }}" for="cu{{ c.cupo.pk }}" title="{{ c.cupo.agenda.policlinico }}{% if c.cupo.motivo_bloqueo %} · {{ c.cupo.motivo_bloqueo }}{% endif %}">{% if c.estado == "con_cita" %}Con cita{% elif c.estado == "bloqueado" %}Bloqueado{% else %}Disponible{% endif %}</label></div>
+                {% endif %}
+              {% else %}<span class="celda-cupo vacio"></span>{% endif %}
+            {% endfor %}
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center text-gris py-5">{% if prof %}{{ prof.nombre }} no tiene horas esta semana.{% else %}Elige un profesional.{% endif %}</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="col-xl-4">
+      <div class="tarjeta tarjeta-cuerpo">
+        <h2 class="h5">Bloques seleccionados</h2>
+        <div class="small text-gris mb-3" id="seleccion">Ninguno. Haz clic en las horas del calendario.</div>
+        <input class="form-control mb-2" name="motivo" placeholder="Motivo del bloqueo (opcional)">
+        <button class="btn btn-suave-rojo w-100 btn-lg-hd mb-2" name="accion" value="bloquear">Bloquear horas</button>
+        <button class="btn btn-primary w-100 btn-lg-hd mb-3" name="accion" value="liberar">Liberar horas</button>
+        <label class="form-label">Liberar de a poco</label>
+        <select class="form-select" name="de_a_poco">
+          <option value="0">Todos los seleccionados</option>
+          <option value="1">1 bloque por vez</option>
+          <option value="2">2 bloques por vez</option>
+          <option value="4">4 bloques por vez</option>
+        </select>
+        <div class="form-text">Habilita los bloques de a poco; vuelven a mostrarse como disponibles.</div>
+        <hr>
+        <h3 class="h6">Leyenda</h3>
+        <div class="small mb-2"><span class="leyenda-cuadro" style="background:#e3f4e8; border:1px solid #b8dfc5"></span>Disponible</div>
+        <div class="small mb-2"><span class="leyenda-cuadro" style="background:#e8f0fd; border:1px solid #9cc0f2"></span>Con cita (sigue ocupada)</div>
+        <div class="small"><span class="leyenda-cuadro" style="background:#e7eaf0; border:1px solid #c7cdd8"></span>Bloqueado</div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+const sel = document.getElementById("seleccion");
+function actualizar() {
+  const marcados = [...document.querySelectorAll(".sel-cupo:checked")].map(c => c.dataset.texto);
+  sel.innerHTML = marcados.length ? marcados.join("<br>") + ` <br><strong>(${marcados.length} bloque${marcados.length > 1 ? "s" : ""})</strong>` : "Ninguno. Haz clic en las horas del calendario.";
+}
+document.querySelectorAll(".sel-cupo").forEach(c => c.addEventListener("change", actualizar));
+</script>
+{% endblock %}

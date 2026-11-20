@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block titulo %}Reportes{% endblock %}
+{% block contenido %}
+<h1 class="titulo-pagina">{% if solo_propio %}Mis estadísticas{% else %}Reportes de gestión{% endif %}</h1>
+<p class="subtitulo">Información de pacientes atendidos y estadísticas de demanda y atención, calculadas desde el sistema.{% if solo_propio and f.profesional %} · {{ f.profesional.nombre }}{% endif %}</p>
+
+<form method="get" class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
+  <input type="hidden" name="tab" value="{{ tab }}">
+  <div class="segmento">
+    {% if not solo_propio %}<a href="?tab=caracterizacion&periodo={{ periodo }}{% if f.policlinico %}&policlinico={{ f.policlinico.pk }}{% endif %}{% if f.profesional %}&profesional={{ f.profesional.pk }}{% endif %}" class="{% if tab == 'caracterizacion' %}activo{% endif %}">Caracterización</a>{% endif %}
+    <a href="?tab=demanda&periodo={{ periodo }}{% if f.policlinico %}&policlinico={{ f.policlinico.pk }}{% endif %}{% if f.profesional and not solo_propio %}&profesional={{ f.profesional.pk }}{% endif %}" class="{% if tab == 'demanda' %}activo{% endif %}">Demanda y atención</a>
+  </div>
+  <div class="d-flex flex-wrap gap-3">
+    <div><label class="form-label">Período</label><select class="form-select" name="periodo" data-autosubmit style="min-width: 180px">
+      {% for k, t in periodos %}<option value="{{ k }}" {% if k == periodo %}selected{% endif %}>{{ t }}{% if k == periodo %} ({{ f.etiqueta }}){% endif %}</option>{% endfor %}</select></div>
+    <div><label class="form-label">Policlínico</label><select class="form-select" name="policlinico" data-autosubmit style="min-width: 180px">
+      <option value="">Todos</option>{% for p in policlinicos %}<option value="{{ p.pk }}" {% if p == f.policlinico %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}</select></div>
+    {% if not solo_propio %}
+    <div><label class="form-label">Profesional</label><select class="form-select" name="profesional" data-autosubmit style="min-width: 180px">
+      <option value="">Todos</option>{% for p in profesionales %}<option value="{{ p.pk }}" {% if p == f.profesional %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}</select></div>
+    {% endif %}
+  </div>
+</form>
+
+{% if tab == "caracterizacion" %}
+<div class="aviso aviso-naranjo mb-4"><strong>Variables por validar con el mandante</strong>
+  <div class="small">Se muestra el género registrado en la ficha del paciente; las variables definitivas de la caracterización siguen pendientes (RF-14).</div></div>
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ datos.atendidos }}</div><div class="etiqueta">Pacientes atendidos</div></div></div>
+  <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ datos.adultos }} / {{ datos.ninos }}</div><div class="etiqueta">Adultos / menores de 18</div></div></div>
+  <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ datos.inasistencia|floatformat:1 }} %</div><div class="etiqueta">Inasistencia</div></div></div>
+  <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ datos.mujeres }} % / {{ datos.hombres }} %</div><div class="etiqueta">Mujeres / hombres</div></div></div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-lg-6"><div class="tarjeta tarjeta-cuerpo h-100">
+    <h2 class="h6 mb-3">Edad</h2>
+    {% for e in datos.edades %}<div class="barra-h"><span class="text-gris">{{ e.tramo }}</span><div class="track"><div class="fill" style="width: {{ e.ancho }}%"></div><span class="num">{{ e.n }}</span></div></div>{% endfor %}
+  </div></div>
+  <div class="col-lg-6"><div class="tarjeta tarjeta-cuerpo h-100">
+    <h2 class="h6 mb-3">Nacionalidad</h2>
+    {% for n in datos.nacionalidades %}<div class="barra-h"><span class="text-gris">{{ n.nombre }}</span><div class="track"><div class="fill" style="width: {{ n.ancho }}%"></div><span class="num">{{ n.n }}</span></div></div>
+    {% empty %}<p class="text-gris small">Sin atenciones registradas en el período.</p>{% endfor %}
+  </div></div>
+</div>
+<div class="tarjeta tarjeta-cuerpo">
+  <h2 class="h6">Inasistencia por mes</h2>
+  <div class="barras-v">
+    {% for m in datos.meses %}
+    <div class="col"><span class="num">{{ m.pct }} %</span><div class="fill" style="height: {% widthratio m.pct datos.max_mes 100 %}%"></div><span class="lbl">{{ m.mes }}</span></div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="row g-3 mb-4">
+  <div class="col-md-4"><div class="kpi"><div class="valor">{{ datos.pedidas }}</div><div class="etiqueta">Horas pedidas</div></div></div>
+  <div class="col-md-4"><div class="kpi"><div class="valor">{{ datos.atenciones }}</div><div class="etiqueta">Atenciones</div></div></div>
+  <div class="col-md-4"><div class="kpi"><div class="valor">{{ datos.inasistencia|floatformat:1 }} %</div><div class="etiqueta">Inasistencia</div></div></div>
+</div>
+<h2 class="h6">Por profesional</h2>
+<div class="tabla-hd mb-4"><div class="table-responsive"><table class="table">
+  <thead><tr><th>Profesional</th><th>Especialidad</th><th>Policlínico(s)</th><th>Horas pedidas</th><th>Atenciones</th><th>Inasistencia</th></tr></thead>
+  <tbody>
+  {% for x in datos.por_profesional %}
+  <tr><td class="celda-principal">{{ x.nombre }}</td><td>{{ x.detalle }}</td><td class="small">{{ x.policlinicos }}</td><td>{{ x.pedidas }}</td><td>{{ x.atenciones }}</td><td>{{ x.inasistencia }} %</td></tr>
+  {% empty %}<tr><td colspan="6" class="text-center text-gris py-4">Sin datos en el período.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div></div>
+<h2 class="h6">Por policlínico</h2>
+<div class="tabla-hd"><div class="table-responsive"><table class="table">
+  <thead><tr><th>Policlínico</th><th>Horas pedidas</th><th>Atenciones</th><th>Inasistencia</th></tr></thead>
+  <tbody>
+  {% for x in datos.por_policlinico %}
+  <tr><td class="celda-principal">{{ x.nombre }}</td><td>{{ x.pedidas }}</td><td>{{ x.atenciones }}</td><td>{{ x.inasistencia }} %</td></tr>
+  {% empty %}<tr><td colspan="4" class="text-center text-gris py-4">Sin datos en el período.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div></div>
+<div class="d-flex justify-content-between align-items-center mt-2">
+  <span class="small text-gris">Los datos salen del sistema, sin pasarlos a planillas. «Horas pedidas» incluye las citas canceladas.</span>
+  <a class="btn btn-suave" href="{% url 'reportes:csv' %}?{{ qs }}">Descargar tabla (CSV)</a>
+</div>
+{% endif %}
+{% endblock %}

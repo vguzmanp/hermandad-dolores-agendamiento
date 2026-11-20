@@ -23,9 +23,11 @@ class LoginYRolesTests(TestCase):
         call_command("cargar_demo", verbosity=0, stdout=StringIO())
         self.assertEqual(User.objects.filter(username="tens").count(), 1)
 
-    def test_home_requiere_login(self):
+    def test_portada_publica_y_secciones_protegidas(self):
         resp = self.client.get(reverse("home"))
-        self.assertRedirects(resp, reverse("login") + "?next=/")
+        self.assertContains(resp, "¿Cómo quieres entrar?")
+        resp = self.client.get(reverse("citas:agendar"))
+        self.assertRedirects(resp, reverse("login") + "?next=/citas/agendar/")
 
     def test_login_con_usuario_demo(self):
         ok = self.client.login(username="tens", password="demo1234")

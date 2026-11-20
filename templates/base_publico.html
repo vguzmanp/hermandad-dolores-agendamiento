@@ -1,0 +1,29 @@
+{% load static %}<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Reserva de hora{% endblock %} · Hermandad de Dolores</title>
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+<header class="hd-header hd-header-publico">
+  <a class="marca" href="{% block url_marca %}{% url 'portal:inicio' %}{% endblock %}">
+    <span><span class="nombre d-block">Hermandad de Dolores</span><span class="sub">{% block subtitulo_cabecera %}Reserva de hora · sin cuenta ni clave{% endblock %}</span></span>
+  </a>
+  <div class="derecha"><span class="texto-largo">{% block derecha_cabecera %}También por WhatsApp, teléfono o en persona{% endblock %}</span></div>
+</header>
+<div class="contenedor-publico">
+  {% include "includes/mensajes.html" %}
+  {% block cuerpo %}{% endblock %}
+</div>
+<script src="{% static 'vendor/bootstrap.bundle.min.js' %}"></script>
+<script>
+  document.querySelectorAll("[data-autosubmit]").forEach(el => el.addEventListener("change", () => el.form.submit()));
+  document.querySelectorAll("form[data-confirmar]").forEach(f => f.addEventListener("submit", e => { if (!confirm(f.dataset.confirmar)) e.preventDefault(); }));
+  setTimeout(() => document.querySelectorAll(".toast-hd").forEach(t => t.remove()), 3500);
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

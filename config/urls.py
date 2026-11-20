@@ -15,6 +15,7 @@ urlpatterns = [
     ),
     path("accounts/logout/", auth_views.LogoutView.as_view(), name="logout"),
     path("pacientes/", include("pacientes.urls")),
+    path("documentos/", include("pacientes.urls_documentos")),
     path("profesionales/", include("profesionales.urls")),
     path("agenda/", include("agenda.urls")),
     path("citas/", include("citas.urls")),
@@ -22,6 +23,7 @@ urlpatterns = [
     path("asistencia/", include("asistencia.urls")),
     path("reportes/", include("reportes.urls")),
     path("admin/", admin.site.urls),
+    path("", include("portal.urls")),
 ]
 
 if settings.DEBUG:

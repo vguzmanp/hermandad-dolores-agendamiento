@@ -1,43 +1,217 @@
 {% extends "base.html" %}
-{% block titulo %}{% if es_sobrecupo %}Agendar sobrecupo{% else %}Agendar cita{% endif %}{% endblock %}
+{% load hd %}
+{% block titulo %}Agendar nueva cita{% endblock %}
 {% block contenido %}
-<div class="row justify-content-center">
-  <div class="col-lg-8">
-    <h1 class="h3 mb-3">{% if es_sobrecupo %}Agendar sobrecupo{% else %}Agendar cita{% endif %}</h1>
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h1 class="titulo-pagina mb-0">Agendar nueva cita</h1>
+  <a class="small" href="{% url 'citas:lista' %}">Ver listado de citas →</a>
+</div>
 
-    <div class="card shadow-sm mb-3 {% if es_sobrecupo %}border-warning{% endif %}">
-      <div class="card-body">
-        <dl class="row mb-0">
-          <dt class="col-sm-4">Fecha y hora</dt><dd class="col-sm-8">{{ cupo.fecha|date:"l d \d\e F \d\e Y"|capfirst }}, {{ cupo.hora_inicio|time:"H:i" }}–{{ cupo.hora_fin|time:"H:i" }}</dd>
-          <dt class="col-sm-4">Profesional</dt><dd class="col-sm-8">{{ cupo.agenda.profesional.nombre }} ({{ cupo.agenda.profesional.especialidad }})</dd>
-          <dt class="col-sm-4">Policlínico</dt><dd class="col-sm-8">{{ cupo.agenda.policlinico }}</dd>
-          <dt class="col-sm-4">Estado del cupo</dt><dd class="col-sm-8">{{ cupo.estado_display }}</dd>
-          {% if es_sobrecupo and cupo.cita_normal %}
-          <dt class="col-sm-4">Cita sin respuesta</dt><dd class="col-sm-8">{{ cupo.cita_normal.paciente.nombre }}</dd>
-          {% endif %}
-        </dl>
-        {% if es_sobrecupo %}
-        <div class="alert alert-warning small mt-3 mb-0">RN-07: el sobrecupo se permite porque la cita de este cupo está «sin respuesta». Máximo 2 citas por cupo.
-          Si el paciente original cancela, el sobrecupo pasa a ser la cita del cupo.</div>
-        {% endif %}
+{% if reagendar %}
+<div class="aviso aviso-azul mb-3">
+  <strong>Reagendando la cita del {{ reagendar.cupo.fecha|date:"d/m/Y" }} a las {{ reagendar.cupo.hora_inicio|time:"H:i" }} con {{ reagendar.cupo.agenda.profesional.nombre }}</strong>
+  <div class="small">Al agendar la nueva hora, la anterior se cancela y su hora queda libre. <a href="{% url 'citas:agendar' %}?paciente={{ paciente.pk }}">Cancelar el cambio</a></div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+  {# ---------------- columna izquierda: filtros ---------------- #}
+  <div class="col-lg-4">
+    <form method="get" id="filtros">
+      {% if reagendar %}<input type="hidden" name="reagendar" value="{{ reagendar.pk }}">{% endif %}
+      {% if params.espera %}<input type="hidden" name="espera" value="{{ params.espera }}">{% endif %}
+      <label class="form-label">Paciente <span class="req">*</span></label>
+      {% if paciente %}
+        <input type="hidden" name="paciente" value="{{ paciente.pk }}">
+        <div class="tarjeta p-3 mb-3 d-flex justify-content-between align-items-start">
+          <div><div class="celda-principal">{{ paciente.nombre }}</div><div class="celda-sec">RUT {{ paciente.rut|rut }} · {{ paciente.edad }} años</div></div>
+          {% if not reagendar %}<a class="small" href="{% url 'citas:agendar' %}">Cambiar</a>{% endif %}
+        </div>
+        {% for a in paciente.advertencias %}<div class="aviso aviso-naranjo small mb-3">{{ a }}</div>{% endfor %}
+      {% else %}
+        <div class="input-group mb-2">
+          <input class="form-control" name="q" value="{{ q }}" placeholder="Nombre o RUT…">
+          <button class="btn btn-primary">Buscar</button>
+        </div>
+        {% if q %}
+        <div class="tarjeta mb-3">
+          {% for p in encontrados %}
+          <a class="d-block px-3 py-2 border-bottom text-decoration-none text-reset" href="?paciente={{ p.pk }}">
+            <span class="celda-principal">{{ p.nombre }}</span><span class="celda-sec d-block">RUT {{ p.rut|rut }} · {{ p.edad }} años</span></a>
+          {% empty %}<div class="p-3 small text-gris">Sin resultados. <a href="{% url 'pacientes:lista' %}?rut={{ q|urlencode }}">Registrar paciente</a></div>{% endfor %}
+        </div>
+        {% else %}<p class="small text-gris mb-3">Busca al paciente para ver sus citas y agendar.</p>{% endif %}
+      {% endif %}
+
+      <label class="form-label">Especialidad <span class="req">*</span></label>
+      <select class="form-select mb-3" name="especialidad" data-autosubmit>
+        <option value="">Selecciona…</option>
+        {% for e in especialidades %}<option value="{{ e.pk }}" {% if e == especialidad %}selected{% endif %}>{{ e.nombre }}</option>{% endfor %}
+      </select>
+      <label class="form-label">Policlínico</label>
+      <select class="form-select mb-3" name="policlinico" data-autosubmit>
+        <option value="">Todos</option>
+        {% for p in policlinicos %}<option value="{{ p.pk }}" {% if p == policlinico %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}
+      </select>
+      <label class="form-label">Profesional <span class="req">*</span></label>
+      <select class="form-select mb-3" name="profesional" data-autosubmit {% if not especialidad %}disabled{% endif %}>
+        {% for p in profesionales %}<option value="{{ p.pk }}" {% if p == profesional %}selected{% endif %}>{{ p.nombre }}</option>
+        {% empty %}<option value="">{% if especialidad %}Sin profesionales{% else %}Elige una especialidad{% endif %}</option>{% endfor %}
+      </select>
+      <label class="form-label">¿Cómo pidió la hora? <span class="req">*</span></label>
+      <select class="form-select mb-3" name="canal" data-autosubmit>
+        {% for v, t in canales %}{% if v != "web" %}<option value="{{ v }}" {% if v == canal %}selected{% endif %}>{{ t }}</option>{% endif %}{% endfor %}
+      </select>
+      {% if max_ses > 1 and not reagendar %}
+      <label class="form-label">Sesiones</label>
+      <select class="form-select" name="sesiones" data-autosubmit>
+        {% for n in rango_sesiones %}<option value="{{ n }}" {% if n == sesiones %}selected{% endif %}>{{ n }} sesi{{ n|pluralize:"ón,ones" }}</option>{% endfor %}
+      </select>
+      <div class="form-text">Según la especialidad se pueden agendar todas las sesiones de una vez (RN-01).</div>
+      {% endif %}
+    </form>
+  </div>
+
+  {# ---------------- calendario ---------------- #}
+  <div class="col-lg-8">
+    <div class="tarjeta-gris p-3 h-100">
+      <div class="cal">
+        <div class="cal-cab">
+          {% if url_mes_ant %}<a href="{{ url_mes_ant }}">‹</a>{% else %}<span class="deshab px-2">‹</span>{% endif %}
+          <span>{{ titulo_mes }}</span>
+          <a href="{{ url_mes_sig }}">›</a>
+        </div>
+        <div class="cal-grid">
+          <div class="dow">Lu</div><div class="dow">Ma</div><div class="dow">Mi</div><div class="dow">Ju</div><div class="dow">Vi</div><div class="dow">Sá</div><div class="dow">Do</div>
+          {% for semana in semanas %}{% for d in semana %}
+            {% if d is None %}<div></div>
+            {% elif d.url %}<a href="{{ d.url }}" class="cal-dia disp {% if d.sel %}sel{% endif %} {% if d.hoy %}hoy{% endif %}">{{ d.fecha.day }}</a>
+            {% else %}<div class="cal-dia {% if d.sel %}sel{% endif %}">{{ d.fecha.day }}</div>{% endif %}
+          {% endfor %}{% endfor %}
+        </div>
+        <div class="cal-leyenda"><span class="punto-verde"></span>Con horas disponibles</div>
       </div>
     </div>
-
-    <div class="card shadow-sm"><div class="card-body">
-      <form method="post" novalidate>
-        {% csrf_token %}
-        <div class="row">
-          <div class="col-md-6">{% include "includes/campo.html" with campo=form.rut %}
-            <div class="form-text mt-n2 mb-3">¿No está registrado? <a href="{% url 'pacientes:buscar_rut' %}" target="_blank">Buscar / registrar paciente</a></div>
-          </div>
-          {% if form.sesiones %}<div class="col-md-6">{% include "includes/campo.html" with campo=form.sesiones %}</div>{% endif %}
-          <div class="col-md-6">{% include "includes/campo.html" with campo=form.dias_aviso %}</div>
-          <div class="col-md-12">{% include "includes/campo.html" with campo=form.observaciones %}</div>
-        </div>
-        <button class="btn {% if es_sobrecupo %}btn-warning{% else %}btn-hd{% endif %}">{% if es_sobrecupo %}Confirmar sobrecupo{% else %}Confirmar agendamiento{% endif %}</button>
-        <a class="btn btn-link" href="{% url 'citas:disponibilidad' %}">Volver a disponibilidad</a>
-      </form>
-    </div></div>
   </div>
 </div>
+
+{# ---------------- horas disponibles ---------------- #}
+<div class="tarjeta-gris p-4 mt-4">
+  <h2 class="h6 mb-0">Horas disponibles</h2>
+  {% if profesional %}
+  <div class="small text-gris mb-3">{% if fecha %}{{ fecha|fecha_larga_anio }} · {% endif %}{{ profesional.nombre }}</div>
+  {% if libres or sobrecupo %}
+  <form method="post" id="formAgendar">
+    {% csrf_token %}
+    {% for k, v in params.items %}{% if k != "sesiones" %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+    <input type="hidden" name="sesiones" value="{{ sesiones }}">
+    <input type="hidden" name="tipo" id="tipo" value="normal">
+    <div class="grilla-slots">
+      {% for c in libres %}
+      <div><input type="radio" class="btn-check" name="cupo" id="c{{ c.pk }}" value="{{ c.pk }}" data-tipo="normal"
+             data-texto="{{ c.fecha|fecha_corta }} · {{ c.hora_inicio|time:'H:i' }}{% if not policlinico %} · {{ c.agenda.policlinico }}{% endif %}">
+        <label class="slot slot-ancho" for="c{{ c.pk }}">{{ c.hora_inicio|time:"H:i" }}{% if not policlinico %}<span class="d-block small fw-normal text-gris">{{ c.agenda.policlinico }}</span>{% endif %}</label></div>
+      {% endfor %}
+    </div>
+    {% if sobrecupo %}
+    <div class="small text-gris fw-semibold mt-3 mb-2">Sobrecupo (citas del día sin confirmar)</div>
+    <div class="grilla-slots">
+      {% for c in sobrecupo %}
+      <div><input type="radio" class="btn-check" name="cupo" id="s{{ c.pk }}" value="{{ c.pk }}" data-tipo="sobrecupo"
+             data-texto="{{ c.fecha|fecha_corta }} · {{ c.hora_inicio|time:'H:i' }} (sobrecupo)">
+        <label class="slot slot-ancho slot-sobre" for="s{{ c.pk }}" title="Cita sin respuesta de {{ c.cita_normal.paciente.nombre }}">{{ c.hora_inicio|time:"H:i" }}</label></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="resumen-seleccion mt-3 d-none" id="resumen"></div>
+    {% if paciente %}
+    <button class="btn btn-primary w-100 btn-lg-hd mt-3" id="btnAgendar" disabled>{% if reagendar %}Cambiar a esta hora{% else %}Agendar cita{% endif %}</button>
+    {% else %}
+    <div class="aviso aviso-naranjo small mt-3">Primero busca y elige al paciente.</div>
+    {% endif %}
+  </form>
+  {% else %}
+  <div class="tarjeta p-3" style="border-style: dashed">
+    <div class="fw-semibold mb-2">No hay horas disponibles por ahora con {{ profesional.nombre }}</div>
+    {% if en_espera %}
+    <div class="aviso aviso-verde"><strong>Paciente anotado/a en la lista de espera</strong><div class="small">Desde el {{ en_espera.creada_en|date:"d/m/Y" }}. Se le contactará cuando se libere una hora.</div></div>
+    {% elif paciente %}
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="accion" value="espera">
+      {% for k, v in params.items %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+      <button class="btn btn-primary">Anotar en lista de espera</button>
+    </form>
+    {% else %}<div class="small text-gris">Elige al paciente para anotarlo en la lista de espera.</div>{% endif %}
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="small text-gris">Elige una especialidad y un profesional para ver sus horas.</div>
+  {% endif %}
+</div>
+
+{# ---------------- citas del paciente ---------------- #}
+{% if paciente %}
+<h2 class="h5 mt-4">Citas del paciente <span class="text-gris fw-normal fs-6">· {{ paciente.nombre }}</span></h2>
+<div class="tabla-hd">
+  {% if citas_paciente %}
+  <div class="table-responsive"><table class="table">
+    <thead><tr><th>Fecha</th><th>Hora</th><th>Profesional</th><th>Policlínico</th><th>Estado</th><th>Acciones</th></tr></thead>
+    <tbody>
+    {% for c in citas_paciente %}
+    <tr>
+      <td>{{ c.cupo.fecha|date:"d/m/Y" }}</td>
+      <td>{{ c.cupo.hora_inicio|time:"H:i" }}</td>
+      <td>{{ c.cupo.agenda.profesional.nombre }}<div class="celda-sec">{{ c.cupo.agenda.profesional.especialidad }}</div></td>
+      <td>{{ c.cupo.agenda.policlinico }}</td>
+      <td>{% pill_cita c %}{% if c.asistencia_registrada %}<div class="mt-1">{% if c.asistencia_registrada.asistio %}<span class="pill pill-verde">Asistió</span>{% else %}<span class="pill pill-rojo">No asistió</span>{% endif %}</div>{% endif %}</td>
+      <td class="text-nowrap">
+        {% if c.es_vigente and not c.es_pasada %}
+          {% if c.estado != "confirmada" %}
+          <form method="post" action="{% url 'citas:accion' c.pk 'confirmar' %}" class="d-inline">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-verde btn-xs">Confirmar</button></form>
+          {% endif %}
+          <button class="btn btn-suave-rojo btn-xs" data-bs-toggle="modal" data-bs-target="#modalCancelar"
+                  data-url="{% url 'citas:accion' c.pk 'cancelar' %}" data-detalle="{{ c.cupo.fecha|date:'d/m/Y' }} a las {{ c.cupo.hora_inicio|time:'H:i' }} con {{ c.cupo.agenda.profesional.nombre }}">Cancelar</button>
+          <a class="btn btn-suave btn-xs" href="?reagendar={{ c.pk }}&especialidad={{ c.cupo.agenda.profesional.especialidad_id }}&profesional={{ c.cupo.agenda.profesional_id }}">Reagendar</a>
+        {% elif c.estado == "cancelada" and not c.es_pasada %}
+          <a class="btn btn-verde btn-xs" href="?paciente={{ paciente.pk }}&especialidad={{ c.cupo.agenda.profesional.especialidad_id }}&profesional={{ c.cupo.agenda.profesional_id }}">Reagendar</a>
+        {% else %}<span class="text-gris">—</span>{% endif %}
+        <a class="small ms-1" href="{% url 'citas:detalle' c.pk %}">Ver</a>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <div class="text-center text-gris py-4">{{ paciente.nombre }} aún no tiene citas.</div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# modal ¿Cancelar la cita? #}
+<div class="modal fade" id="modalCancelar" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body">
+    <h2 class="h4">¿Cancelar la cita?</h2>
+    <p class="text-gris"><span id="detalleCancelar"></span>. La hora queda libre para otro paciente.</p>
+    <form method="post" id="formCancelar" class="d-flex justify-content-end gap-2">
+      {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <input type="hidden" name="motivo" value="El paciente avisó a la TENS">
+      <button type="button" class="btn btn-gris btn-lg-hd" data-bs-dismiss="modal">No, mantener</button>
+      <button class="btn btn-rojo btn-lg-hd">Sí, cancelar cita</button>
+    </form>
+  </div></div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById("modalCancelar").addEventListener("show.bs.modal", e => {
+  document.getElementById("formCancelar").action = e.relatedTarget.dataset.url;
+  document.getElementById("detalleCancelar").textContent = e.relatedTarget.dataset.detalle;
+});
+document.querySelectorAll("input[name=cupo]").forEach(r => r.addEventListener("change", () => {
+  document.getElementById("tipo").value = r.dataset.tipo;
+  const res = document.getElementById("resumen");
+  res.textContent = r.dataset.texto; res.classList.remove("d-none");
+  const b = document.getElementById("btnAgendar"); if (b) b.disabled = false;
+}));
+</script>
 {% endblock %}

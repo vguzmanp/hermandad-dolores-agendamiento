@@ -1,0 +1,13 @@
+{% if messages %}
+<div class="mensajes-flash">
+  {% for m in messages %}
+    {% if "toast" in m.tags %}
+    <div class="toast-hd">{{ m }}</div>
+    {% else %}
+    <div class="alert alert-{{ m.level_tag|default:'info' }} alert-dismissible fade show py-2" role="alert">
+      {{ m }}<button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block titulo %}Especialidades y policlínicos{% endblock %}
+{% block contenido %}
+<h1 class="titulo-pagina">Especialidades y policlínicos</h1>
+<p class="subtitulo">La especialidad es el tipo de atención (p. ej. Kinesiología); el policlínico es el lugar donde se atiende. Un profesional tiene una especialidad y atiende en uno o más policlínicos según su horario semanal.</p>
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h2 class="h5 mb-0">Especialidades</h2>
+  <a class="btn btn-primary" href="{% url 'profesionales:especialidad_crear' %}">+ Nueva especialidad</a>
+</div>
+<div class="tabla-hd mb-5"><div class="table-responsive"><table class="table">
+  <thead><tr><th>Nombre</th><th>Duración de cada hora</th><th>Sesiones por tratamiento</th><th>Agendar todas las sesiones (RN-01)</th><th>Profesionales</th><th>Estado</th><th></th></tr></thead>
+  <tbody>
+  {% for e in especialidades %}
+  <tr>
+    <td class="celda-principal">{{ e.nombre }}</td><td>{{ e.duracion_cupo_min }} min</td><td>{{ e.sesiones_por_tratamiento }}</td>
+    <td>{% if e.permite_agendar_todas_sesiones %}<span class="pill pill-azul">Sí</span>{% else %}No{% endif %}</td>
+    <td>{{ e.n_profesionales }}</td>
+    <td>{% if e.activa %}<span class="pill pill-verde">Activa</span>{% else %}<span class="pill pill-gris">Inactiva</span>{% endif %}</td>
+    <td class="text-end"><a class="btn btn-gris btn-xs" href="{% url 'profesionales:especialidad_editar' e.pk %}">Editar</a></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div></div>
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h2 class="h5 mb-0">Policlínicos</h2>
+  <a class="btn btn-primary" href="{% url 'profesionales:policlinico_crear' %}">+ Nuevo policlínico</a>
+</div>
+<div class="tabla-hd"><div class="table-responsive"><table class="table">
+  <thead><tr><th>Nombre</th><th>Dirección</th><th>Tipo</th><th>Bloques semanales activos</th><th>Estado</th><th></th></tr></thead>
+  <tbody>
+  {% for p in policlinicos %}
+  <tr>
+    <td class="celda-principal">{{ p.nombre }}</td><td>{{ p.direccion|default:"—" }}</td>
+    <td>{% if p.es_telemedicina %}<span class="pill pill-azul">Telemedicina</span>{% else %}Presencial{% endif %}</td>
+    <td>{{ p.n_agendas }}</td>
+    <td>{% if p.activo %}<span class="pill pill-verde">Activo</span>{% else %}<span class="pill pill-gris">Inactivo</span>{% endif %}</td>
+    <td class="text-end"><a class="btn btn-gris btn-xs" href="{% url 'profesionales:policlinico_editar' p.pk %}">Editar</a></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div></div>
+{% endblock %}

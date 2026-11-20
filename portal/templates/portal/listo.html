@@ -1,0 +1,27 @@
+{% extends "base_publico.html" %}
+{% load hd %}
+{% block titulo %}Hora reservada{% endblock %}
+{% block cuerpo %}
+<div class="tarjeta tarjeta-cuerpo">
+  <div class="d-flex align-items-center gap-3 mb-3">
+    <div class="icono-ok">{% include "includes/icono.html" with n="check" t=26 %}</div>
+    <div><h1 class="titulo-pagina mb-0">Hora reservada</h1>
+      <div class="text-gris">{{ cita.cupo.agenda.profesional.nombre }} · {{ cita.cupo.fecha|fecha_corta }} · {{ cita.cupo.hora_inicio|time:"H:i" }} · {{ cita.cupo.agenda.policlinico }}</div></div>
+  </div>
+  <div class="aviso aviso-verde mb-3">Te enviamos la confirmación de la reserva por WhatsApp al <strong>{{ cita.paciente.celular|enmascarar_celular }}</strong>{% if cita.paciente.correo %} y a <strong>{{ cita.paciente.correo|enmascarar_correo }}</strong>{% endif %}.</div>
+  <div class="aviso aviso-verde mb-3">{{ cita.dias_aviso }} días antes te enviaremos un recordatorio por WhatsApp para <strong>confirmar, cancelar o cambiar</strong> la hora.</div>
+  <form method="post" enctype="multipart/form-data" class="aviso aviso-naranjo mb-3">
+    {% csrf_token %}
+    <div class="mb-2">Recuerda traer tu certificado de FONASA e inscripción al CESFAM. Si quieres, puedes adjuntarlos ahora (opcional).</div>
+    <div class="row g-3 align-items-end">
+      <div class="col-md-5"><label class="form-label">Certificado de FONASA</label><input class="form-control bg-white" type="file" name="fonasa" accept=".pdf,.jpg,.jpeg,.png"></div>
+      <div class="col-md-5"><label class="form-label">Inscripción al CESFAM</label><input class="form-control bg-white" type="file" name="cesfam" accept=".pdf,.jpg,.jpeg,.png"></div>
+      <div class="col-md-2"><button class="btn btn-blanco w-100">Adjuntar</button></div>
+    </div>
+  </form>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-primary btn-lg-hd" href="{% url 'portal:inicio' %}">Reservar otra hora</a>
+    <a class="btn btn-suave btn-lg-hd" href="{% url 'portal:aviso' cita.token %}">Ver aviso de confirmación →</a>
+  </div>
+</div>
+{% endblock %}

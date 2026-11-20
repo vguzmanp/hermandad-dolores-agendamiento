@@ -1,35 +1,38 @@
 {% extends "base.html" %}
+{% load hd %}
 {% block titulo %}Citas{% endblock %}
 {% block contenido %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h3 mb-0">{% if es_profesional and not es_tens and not es_admin %}Mis citas{% else %}Listado de citas{% endif %}</h1>
-  {% if es_tens %}<a class="btn btn-hd" href="{% url 'citas:disponibilidad' %}">+ Agendar cita</a>{% endif %}
-</div>
-<form class="card shadow-sm mb-3" method="get">
-  <div class="card-body row g-2 align-items-end">
-    <div class="col-md-2"><label class="form-label small">Desde</label>{{ form.desde }}</div>
-    <div class="col-md-2"><label class="form-label small">Hasta</label>{{ form.hasta }}</div>
-    {% if form.profesional %}<div class="col-md-3"><label class="form-label small">Profesional</label>{{ form.profesional }}</div>{% endif %}
-    <div class="col-md-2"><label class="form-label small">Policlínico</label>{{ form.policlinico }}</div>
-    <div class="col-md-2"><label class="form-label small">Estado</label>{{ form.estado }}</div>
-    <div class="col-md-1"><button class="btn btn-outline-secondary w-100">Filtrar</button></div>
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+  <div>
+    <h1 class="titulo-pagina">{% if es_profesional and not es_tens and not es_admin %}Mis citas{% else %}Listado de citas{% endif %}</h1>
+    <p class="subtitulo">Citas por rango de fechas, profesional, policlínico y estado.</p>
   </div>
+  {% if es_tens %}<a class="btn btn-primary btn-lg-hd" href="{% url 'citas:agendar' %}">Agendar cita</a>{% endif %}
+</div>
+<form class="row g-2 align-items-end mb-3" method="get">
+  <div class="col-6 col-md-2"><label class="form-label">Desde</label>{{ form.desde }}</div>
+  <div class="col-6 col-md-2"><label class="form-label">Hasta</label>{{ form.hasta }}</div>
+  {% if form.profesional %}<div class="col-md-3"><label class="form-label">Profesional</label>{{ form.profesional }}</div>{% endif %}
+  <div class="col-md-2"><label class="form-label">Policlínico</label>{{ form.policlinico }}</div>
+  <div class="col-md-2"><label class="form-label">Estado</label>{{ form.estado }}</div>
+  <div class="col-md-1"><button class="btn btn-primary w-100">Filtrar</button></div>
 </form>
-<div class="card shadow-sm"><div class="table-responsive">
-<table class="table table-hover table-sm mb-0">
-  <thead class="table-light"><tr><th>Fecha</th><th>Hora</th><th>Paciente</th><th>Profesional</th><th>Policlínico</th><th>Estado</th>{% if not solo_lectura %}<th class="text-end">Acciones</th>{% endif %}</tr></thead>
+<div class="tabla-hd"><div class="table-responsive">
+<table class="table">
+  <thead><tr><th>Fecha</th><th>Hora</th><th>Paciente</th><th>Profesional</th><th>Policlínico</th><th>Canal</th><th>Estado</th><th></th></tr></thead>
   <tbody>
   {% for c in pagina %}
-  <tr class="{% if c.estado == 'cancelada' %}text-muted{% endif %}">
-    <td class="text-nowrap">{{ c.cupo.fecha|date:"D d/m" }}</td>
-    <td>{{ c.cupo.hora_inicio|time:"H:i" }}</td>
-    <td><a href="{% url 'citas:detalle' c.pk %}">{{ c.paciente.nombre }}</a></td>
-    <td class="small">{{ c.cupo.agenda.profesional.nombre }}<br><span class="text-muted">{{ c.cupo.agenda.profesional.especialidad }}</span></td>
-    <td class="small">{{ c.cupo.agenda.policlinico }}</td>
-    <td>{% include "citas/_estado.html" %}</td>
-    {% if not solo_lectura %}<td>{% include "citas/_acciones.html" with next=request.get_full_path %}</td>{% endif %}
+  <tr>
+    <td class="text-nowrap">{{ c.cupo.fecha|fecha_corta }}</td>
+    <td class="fw-bold">{{ c.cupo.hora_inicio|time:"H:i" }}</td>
+    <td class="celda-principal">{{ c.paciente.nombre }}<div class="celda-sec">RUT {{ c.paciente.rut|rut }}</div></td>
+    <td>{{ c.cupo.agenda.profesional.nombre }}<div class="celda-sec">{{ c.cupo.agenda.profesional.especialidad }}</div></td>
+    <td>{{ c.cupo.agenda.policlinico }}</td>
+    <td class="small">{{ c.get_canal_display }}</td>
+    <td>{% pill_cita c %}{% if c.asistencia_registrada %} {% if c.asistencia_registrada.asistio %}<span class="pill pill-verde">Asistió</span>{% else %}<span class="pill pill-rojo">No asistió</span>{% endif %}{% endif %}</td>
+    <td class="text-end"><a class="btn btn-suave btn-xs" href="{% url 'citas:detalle' c.pk %}">Ver</a></td>
   </tr>
-  {% empty %}<tr><td colspan="7" class="text-center text-muted py-4">No hay citas con esos filtros.</td></tr>
+  {% empty %}<tr><td colspan="8" class="text-center text-gris py-4">No hay citas con esos filtros.</td></tr>
   {% endfor %}
   </tbody>
 </table>

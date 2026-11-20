@@ -1,36 +1,119 @@
 {% extends "base.html" %}
+{% load hd %}
 {% block titulo %}Pacientes{% endblock %}
 {% block contenido %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h3 mb-0">Pacientes</h1>
-  {% if es_tens %}<a class="btn btn-hd" href="{% url 'pacientes:buscar_rut' %}">+ Registrar paciente</a>{% endif %}
-</div>
-<form class="row g-2 mb-3" method="get">
-  <div class="col-md-6"><input class="form-control" name="q" value="{{ q }}" placeholder="Buscar por RUT o nombre"></div>
-  <div class="col-auto"><button class="btn btn-outline-secondary">Buscar</button></div>
-  {% if q %}<div class="col-auto"><a class="btn btn-link" href="{% url 'pacientes:lista' %}">Limpiar</a></div>{% endif %}
-</form>
-<div class="card shadow-sm">
-  <div class="table-responsive">
-    <table class="table table-hover mb-0">
-      <thead class="table-light"><tr><th>Nombre</th><th>RUT</th><th>Edad</th><th>Celular</th><th>CESFAM</th><th>Responsable</th><th></th></tr></thead>
-      <tbody>
-      {% for p in pagina %}
-        <tr>
-          <td>{{ p.nombre }}</td>
-          <td class="text-nowrap">{{ p.rut_formateado }}</td>
-          <td>{{ p.edad }}</td>
-          <td>{{ p.celular }}</td>
-          <td>{% if p.inscrito_cesfam %}<span class="badge text-bg-success">Inscrito</span>{% else %}<span class="badge text-bg-warning">Sin inscripción</span>{% endif %}</td>
-          <td>{% if p.adulto_responsable %}{{ p.adulto_responsable.nombre }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
-          <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{% url 'pacientes:detalle' p.pk %}">Ver</a></td>
-        </tr>
-      {% empty %}
-        <tr><td colspan="7" class="text-center text-muted py-4">No hay pacientes{% if q %} que coincidan con "{{ q }}"{% endif %}.</td></tr>
-      {% endfor %}
-      </tbody>
-    </table>
+<div class="row g-4">
+  <div class="col-xl-7">
+    {% if form %}
+    <h1 class="titulo-pagina">{% if paciente %}Editar datos del paciente{% else %}Registro de paciente{% endif %}</h1>
+    <p class="small text-gris mb-4">Se registra una sola vez; en las próximas citas el sistema recupera estos datos. Los campos con <span class="req">*</span> son obligatorios.</p>
+    {% if paciente %}
+      {% for a in paciente.advertencias %}<div class="aviso aviso-naranjo small mb-3">{{ a }}{% if "CESFAM" in a %} <a href="{% url 'documentos:lista' %}?paciente={{ paciente.pk }}">Adjuntar comprobante</a>{% endif %}</div>{% endfor %}
+    {% endif %}
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% for e in form.non_field_errors %}<div class="aviso aviso-rojo mb-3">{{ e }}</div>{% endfor %}
+      <div class="row">
+        <div class="col-12">{% include "includes/campo.html" with campo=form.nombre %}</div>
+        <div class="col-md-6">{% include "includes/campo.html" with campo=form.rut %}</div>
+        <div class="col-md-6">{% include "includes/campo.html" with campo=form.fecha_nacimiento %}</div>
+        <div class="col-md-6">{% include "includes/campo.html" with campo=form.celular %}</div>
+        <div class="col-md-6">{% include "includes/campo.html" with campo=form.correo %}</div>
+        <div class="col-12">{% include "includes/campo.html" with campo=form.direccion %}</div>
+        <div class="col-md-6">{% include "includes/campo.html" with campo=form.sexo %}</div>
+        <div class="col-md-6">{% include "includes/campo.html" with campo=form.nacionalidad %}</div>
+        <div class="col-12">{% include "includes/campo.html" with campo=form.requiere_responsable %}</div>
+      </div>
+      <div id="bloque-responsable" class="border-top pt-3">
+        <div class="row">
+          <div class="col-md-6">{% include "includes/campo.html" with campo=form_resp.nombre %}</div>
+          <div class="col-md-6">{% include "includes/campo.html" with campo=form_resp.rut %}</div>
+          <div class="col-md-6">{% include "includes/campo.html" with campo=form_resp.celular %}</div>
+          <div class="col-md-6">{% include "includes/campo.html" with campo=form_resp.parentesco %}</div>
+        </div>
+      </div>
+      <div class="d-flex gap-2 mt-2">
+        <button class="btn btn-primary btn-lg-hd">Guardar paciente</button>
+        <a class="btn btn-gris btn-lg-hd" href="{% url 'pacientes:lista' %}">Cancelar</a>
+        {% if paciente %}
+        <a class="btn btn-suave btn-lg-hd ms-auto" href="{% url 'citas:agendar' %}?paciente={{ paciente.pk }}">Citas del paciente</a>
+        <a class="btn btn-suave btn-lg-hd" href="{% url 'documentos:lista' %}?paciente={{ paciente.pk }}">Documentos</a>
+        {% endif %}
+      </div>
+    </form>
+    {% elif paciente %}
+    <h1 class="titulo-pagina">{{ paciente.nombre }}</h1>
+    <p class="subtitulo">Solo consulta: las TENS/TONS registran y editan pacientes.</p>
+    {% for a in paciente.advertencias %}<div class="aviso aviso-naranjo small mb-3">{{ a }}</div>{% endfor %}
+    <div class="tarjeta tarjeta-cuerpo">
+      <dl class="row mb-0">
+        <dt class="col-sm-4">RUT</dt><dd class="col-sm-8">{{ paciente.rut|rut }}</dd>
+        <dt class="col-sm-4">Fecha de nacimiento</dt><dd class="col-sm-8">{{ paciente.fecha_nacimiento|date:"d/m/Y" }} ({{ paciente.edad }} años)</dd>
+        <dt class="col-sm-4">Teléfono</dt><dd class="col-sm-8">{{ paciente.celular }}</dd>
+        <dt class="col-sm-4">Correo</dt><dd class="col-sm-8">{{ paciente.correo|default:"—" }}</dd>
+        <dt class="col-sm-4">Dirección</dt><dd class="col-sm-8">{{ paciente.direccion }}</dd>
+        <dt class="col-sm-4">Género / nacionalidad</dt><dd class="col-sm-8">{{ paciente.get_sexo_display }} · {{ paciente.nacionalidad }}</dd>
+        {% if paciente.adulto_responsable %}<dt class="col-sm-4">Adulto responsable</dt><dd class="col-sm-8">{{ paciente.adulto_responsable.nombre }} ({{ paciente.adulto_responsable.parentesco }}) · {{ paciente.adulto_responsable.celular }}</dd>{% endif %}
+      </dl>
+      <a class="btn btn-suave mt-3" href="{% url 'documentos:lista' %}?paciente={{ paciente.pk }}">Documentos</a>
+    </div>
+    {% else %}
+    <h1 class="titulo-pagina">Pacientes</h1>
+    <p class="subtitulo">Busca un paciente para ver sus datos. Solo las TENS/TONS registran y editan pacientes.</p>
+    {% endif %}
+  </div>
+
+  <div class="col-xl-5">
+    <div class="tarjeta-gris p-4">
+      <h2 class="h5">Buscar paciente</h2>
+      <form method="get" action="{% url 'pacientes:lista' %}" class="d-flex gap-2 mb-3">
+        <input class="form-control bg-white" name="q" value="{{ q }}" placeholder="Nombre o RUT…">
+        <button class="btn btn-primary">Buscar</button>
+      </form>
+      <h3 class="h6">Resultados{% if not q %} <span class="text-gris fw-normal small">· registrados recientemente</span>{% endif %}</h3>
+      <div class="tabla-hd">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Nombre</th><th>Fecha nac.</th><th>Teléfono</th><th>Acciones</th></tr></thead>
+          <tbody>
+          {% for p in resultados %}
+          <tr class="{% if p == paciente %}seleccionada{% endif %}">
+            <td><div class="celda-principal small">{{ p.nombre }}</div><div class="celda-sec">RUT {{ p.rut|rut }}</div></td>
+            <td class="small">{{ p.fecha_nacimiento|date:"d/m/Y" }}</td>
+            <td class="small text-nowrap">{{ p.celular }}</td>
+            <td class="small text-nowrap">
+              <a class="d-block" href="{% url 'pacientes:editar' p.pk %}{% if q %}?q={{ q|urlencode }}{% endif %}">{% if es_tens %}Editar datos{% else %}Ver datos{% endif %}</a>
+              {% if es_tens %}<a class="d-block" href="{% url 'citas:agendar' %}?paciente={{ p.pk }}">Agendar cita</a>{% endif %}
+            </td>
+          </tr>
+          {% empty %}<tr><td colspan="4" class="text-center text-gris py-3">Sin resultados{% if q and es_tens %}. Regístrelo a la izquierda.{% endif %}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
-{% include "includes/paginacion.html" %}
+{% endblock %}
+{% block scripts %}
+{% if form %}
+<script>
+(function () {
+  const fnac = document.getElementById("id_fecha_nacimiento");
+  const req = document.getElementById("id_requiere_responsable");
+  const bloque = document.getElementById("bloque-responsable");
+  function esMenor() {
+    if (!fnac.value) return false;
+    const n = new Date(fnac.value + "T00:00:00"), h = new Date();
+    let e = h.getFullYear() - n.getFullYear();
+    if (h.getMonth() < n.getMonth() || (h.getMonth() === n.getMonth() && h.getDate() < n.getDate())) e--;
+    return e < 18;
+  }
+  function actualizar() {
+    if (esMenor()) req.checked = true;
+    bloque.classList.toggle("d-none", !req.checked);
+  }
+  fnac.addEventListener("change", actualizar); req.addEventListener("change", actualizar); actualizar();
+})();
+</script>
+{% endif %}
 {% endblock %}

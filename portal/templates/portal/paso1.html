@@ -1,0 +1,44 @@
+{% extends "base_publico.html" %}
+{% block titulo %}Reserva tu hora{% endblock %}
+{% block cuerpo %}
+{% include "portal/_pasos.html" with paso=1 %}
+<h1 class="titulo-pagina">Reserva tu hora</h1>
+<p class="subtitulo">Elige la especialidad. No necesitas crear una cuenta.</p>
+<form method="get" action="{% url 'portal:horas' %}" class="tarjeta tarjeta-cuerpo">
+  <div class="row g-3 align-items-end">
+    <div class="col-md-4">
+      <label class="form-label" for="esp">Especialidad <span class="req">*</span></label>
+      <select class="form-select" name="esp" id="esp" required>
+        <option value="">Selecciona…</option>
+        {% for e in especialidades %}<option value="{{ e.pk }}">{{ e.nombre }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" for="pol">Policlínico</label>
+      <select class="form-select" name="pol" id="pol">
+        <option value="">Cualquier policlínico</option>
+        {% for p in policlinicos %}<option value="{{ p.pk }}">{{ p.nombre }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" for="prof">Profesional</label>
+      <select class="form-select" name="prof" id="prof">
+        <option value="">Cualquier profesional</option>
+        {% for p in profesionales %}<option value="{{ p.pk }}" data-esp="{{ p.especialidad_id }}">{{ p.nombre }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2"><button class="btn btn-primary btn-lg-hd w-100">Buscar horas</button></div>
+  </div>
+</form>
+<p class="small text-gris mt-3">¿Ya tienes hora? Usa el link que te enviamos por WhatsApp o correo para confirmarla, cambiarla o cancelarla.</p>
+{% endblock %}
+{% block scripts %}
+<script>
+const esp = document.getElementById("esp"), prof = document.getElementById("prof");
+function filtrar() {
+  [...prof.options].forEach(o => { if (o.dataset.esp) o.hidden = !!esp.value && o.dataset.esp !== esp.value; });
+  if (prof.selectedOptions[0] && prof.selectedOptions[0].hidden) prof.value = "";
+}
+esp.addEventListener("change", filtrar); filtrar();
+</script>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base_publico.html" %}
+{% load hd %}
+{% block titulo %}Confirma tu reserva{% endblock %}
+{% block cuerpo %}
+{% include "portal/_pasos.html" with paso=4 %}
+<h1 class="titulo-pagina">Confirma tu reserva</h1>
+<p class="subtitulo">Revisa los datos antes de reservar.</p>
+<div class="tarjeta tarjeta-cuerpo">
+  <div class="tarjeta-gris p-3 mb-3" style="border:0">
+    <div class="row g-3">
+      <div class="col-md-6"><div class="small text-gris">Paciente</div><div class="fw-bold fs-5">RUT {{ paciente.rut|rut }}</div></div>
+      <div class="col-md-6"><div class="small text-gris">Especialidad · Policlínico</div><div class="fw-bold fs-5">{{ cupo.agenda.profesional.especialidad }} · {{ cupo.agenda.policlinico }}</div></div>
+      <div class="col-md-6"><div class="small text-gris">Profesional</div><div class="fw-bold fs-5">{{ cupo.agenda.profesional.nombre }}</div></div>
+      <div class="col-md-6"><div class="small text-gris">Fecha y hora</div><div class="fw-bold fs-5">{{ cupo.fecha|fecha_corta }} · {{ cupo.hora_inicio|time:"H:i" }}</div></div>
+    </div>
+  </div>
+  <p class="text-gris">La confirmación de la reserva llegará por WhatsApp al {{ paciente.celular|enmascarar_celular }}{% if paciente.correo %} y a {{ paciente.correo|enmascarar_correo }}{% endif %}.</p>
+  <form method="post" class="d-flex gap-2">{% csrf_token %}
+    <button class="btn btn-primary btn-lg-hd">Reservar hora</button>
+    <a class="btn btn-gris btn-lg-hd" href="{{ volver }}">Volver</a>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load hd %}
+{% block titulo %}Inicio{% endblock %}
+{% block contenido %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+  <div>
+    <h1 class="titulo-pagina">Inicio</h1>
+    <p class="subtitulo">{{ hoy|fecha_larga_anio }} · resumen de las agendas de los próximos {{ ind.dias }} días</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-primary btn-lg-hd" href="{% url 'profesionales:lista' %}?nuevo=1">+ Agregar profesional</a>
+    <a class="btn btn-suave btn-lg-hd" href="{% url 'reportes:inicio' %}">Ver reportes</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ ind.profesionales_activos }}</div><div class="etiqueta">Profesionales activos</div></div></div>
+  <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ ind.cupos_ofrecidos }}</div><div class="etiqueta">Cupos ofrecidos</div></div></div>
+  <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ ind.ocupacion }} %</div><div class="etiqueta">Ocupación de los cupos abiertos</div></div></div>
+  <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ ind.en_espera }}</div><div class="etiqueta">En lista de espera</div></div></div>
+</div>
+
+{% for f in ind.alertas %}
+<div class="aviso aviso-naranjo mb-3">
+  <strong>{{ f.profesional.nombre }} no tiene horas disponibles y hay {{ f.espera }} paciente{{ f.espera|pluralize }} en lista de espera</strong>
+  <div class="small">Revisa sus horas bloqueadas y libéralas de a poco. <a href="{% url 'agenda:calendario' %}?profesional={{ f.profesional.pk }}">Ir a su calendario</a></div>
+</div>
+{% endfor %}
+
+<h2 class="h4 mt-4">Calendario general · próximos {{ ind.dias }} días</h2>
+<div class="tabla-hd">
+  <div class="table-responsive">
+  <table class="table">
+    <thead><tr><th>Profesional</th><th>Especialidad</th><th>Cupos ofrecidos</th><th>Con cita</th><th>Bloqueados</th><th>Disponibles</th><th>Lista de espera</th><th></th></tr></thead>
+    <tbody>
+    {% for f in ind.filas %}
+    <tr>
+      <td class="celda-principal">{{ f.profesional.nombre }}</td>
+      <td>{{ f.profesional.especialidad }}</td>
+      <td>{{ f.ofrecidos }}</td>
+      <td>{{ f.con_cita }}</td>
+      <td>{{ f.bloqueados }}</td>
+      <td>{% if f.disponibles %}<span class="pill pill-verde">{{ f.disponibles }}</span>{% else %}<span class="pill pill-rojo">0</span>{% endif %}</td>
+      <td>{{ f.espera }}</td>
+      <td class="text-end"><a class="btn btn-suave btn-xs" href="{% url 'agenda:calendario' %}?profesional={{ f.profesional.pk }}">Ver calendario</a></td>
+    </tr>
+    {% empty %}<tr><td colspan="8" class="text-center text-gris py-4">No hay profesionales activos.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

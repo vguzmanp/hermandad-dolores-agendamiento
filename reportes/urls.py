@@ -1,9 +1,10 @@
 from django.urls import path
 
-from core.views import pendiente
+from . import views
 
 app_name = "reportes"
 
 urlpatterns = [
-    path("", pendiente("Reportes", 6), name="inicio"),
+    path("", views.inicio, name="inicio"),
+    path("demanda.csv", views.csv_demanda, name="csv"),
 ]

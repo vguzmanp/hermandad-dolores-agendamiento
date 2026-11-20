@@ -1,134 +1,150 @@
+"""Horario semanal (bloques) y calendario para bloquear / liberar horas."""
 from datetime import timedelta
-from itertools import groupby
+from urllib.parse import urlencode
 
 from django.contrib import messages
-from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
-from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from core import roles
 from core.exceptions import ReglaNegocioError
-from profesionales.models import Policlinico, Profesional
+from core.fechas import DIAS_CORTOS, lunes_de, rango_semana
+from profesionales.models import Especialidad, Profesional
 
-from .forms import AgendaForm, BloquearDiaForm, GenerarCuposForm
+from .forms import BloqueSemanalForm
 from .models import Agenda, Cupo
-from .repositories import AgendaRepository, CupoRepository
 from .services import AgendaService
 
-agendas_repo = AgendaRepository()
-cupos_repo = CupoRepository()
-servicio = AgendaService(agendas_repo, cupos_repo)
-
-solo_admin = roles.rol_requerido(roles.ADMINISTRACION)
+servicio = AgendaService()
+tens_o_admin = roles.rol_requerido(roles.TENS, roles.ADMINISTRACION)
 
 
-@solo_admin
-def lista(request):
-    prof = request.GET.get("profesional") or None
-    pol = request.GET.get("policlinico") or None
-    hoy = timezone.localdate()
-    agendas = agendas_repo.listar(prof, pol).annotate(
-        cupos_futuros=Count("cupos", filter=Q(cupos__fecha__gte=hoy)),
-    )
-    return render(request, "agenda/lista.html", {
-        "agendas": agendas,
-        "profesionales": Profesional.objects.filter(activo=True),
-        "policlinicos": Policlinico.objects.all(),
-        "prof_sel": prof, "pol_sel": pol,
-    })
+def _seleccion(request):
+    """Especialidad y profesional elegidos en los filtros (por defecto, el primero)."""
+    datos = request.GET if request.method == "GET" else request.POST
+    especialidades = Especialidad.objects.filter(activa=True)
+    esp = especialidades.filter(pk=datos.get("especialidad") or None).first()
+    profesionales = Profesional.objects.select_related("especialidad")
+    if not roles.tiene_rol(request.user, roles.ADMINISTRACION):
+        profesionales = profesionales.filter(activo=True)
+    prof = profesionales.filter(pk=datos.get("profesional") or None).first()
+    if prof and esp is None:
+        esp = prof.especialidad
+    if esp:
+        profesionales = profesionales.filter(especialidad=esp)
+    if prof is None or (esp and prof.especialidad_id != esp.pk):
+        prof = profesionales.first()
+    return especialidades, esp, profesionales, prof
 
 
-@solo_admin
-def agenda_form(request, pk=None):
-    instancia = get_object_or_404(Agenda, pk=pk) if pk else None
-    form = AgendaForm(request.POST or None, instance=instancia)
-    if request.method == "POST" and form.is_valid():
-        try:
-            agenda = servicio.guardar_agenda(form.save(commit=False), request.user)
-        except ReglaNegocioError as e:
-            messages.error(request, str(e))
+def _tabs(request, prof):
+    q = f"?profesional={prof.pk}" if prof else ""
+    tabs = []
+    if roles.tiene_rol(request.user, roles.ADMINISTRACION):
+        tabs.append(("Equipo", reverse("profesionales:lista"), "equipo"))
+    tabs.append(("Calendario" if not roles.tiene_rol(request.user, roles.ADMINISTRACION) else "Bloquear y liberar horas",
+                 reverse("agenda:calendario") + q, "calendario"))
+    tabs.append(("Horario semanal", reverse("agenda:horario") + q, "horario"))
+    return tabs
+
+
+# --------------------------------------------------------------- horario
+@tens_o_admin
+def horario(request):
+    especialidades, esp, profesionales, prof = _seleccion(request)
+    es_admin = roles.tiene_rol(request.user, roles.ADMINISTRACION)
+    form = BloqueSemanalForm(request.POST or None) if es_admin else None
+    abrir_modal = False
+    if request.method == "POST":
+        if not es_admin or prof is None:
+            return redirect("agenda:horario")
+        if form.is_valid():
+            d = form.cleaned_data
+            agenda = Agenda(profesional=prof, policlinico=d["policlinico"], dia_semana=d["dia_semana"],
+                            hora_inicio=d["hora_inicio"], hora_fin=d["hora_fin"], vigente_desde=timezone.localdate())
+            try:
+                _, n = servicio.agregar_bloque(agenda, request.user)
+            except ReglaNegocioError as e:
+                form.add_error(None, f"{e.mensaje} No se guardó.")
+                abrir_modal = True
+            else:
+                messages.success(request, f"Bloque agregado · {n} cupos generados", extra_tags="toast")
+                return redirect(f"{reverse('agenda:horario')}?profesional={prof.pk}")
         else:
-            messages.success(request, "Agenda guardada.")
-            semanas = form.cleaned_data.get("generar_semanas") or 0
-            if semanas and agenda.activa:
-                hoy = timezone.localdate()
-                n = servicio.generar_cupos(agenda, hoy, hoy + timedelta(weeks=semanas), request.user)
-                messages.info(request, f"Se generaron {n} cupos nuevos.")
-            return redirect("agenda:detalle", pk=agenda.pk)
-    return render(request, "agenda/form.html", {"form": form, "agenda": instancia})
-
-
-@solo_admin
-def detalle(request, pk):
-    agenda = get_object_or_404(agendas_repo.listar(), pk=pk)
-    hoy = timezone.localdate()
-    desde = parse_date(request.GET.get("desde") or "") or hoy
-    hasta = parse_date(request.GET.get("hasta") or "") or desde + timedelta(weeks=3)
-    cupos = list(cupos_repo.de_agenda(agenda, desde, hasta))
-    por_fecha = [(f, list(g)) for f, g in groupby(cupos, key=lambda c: c.fecha)]
-    return render(request, "agenda/detalle.html", {
-        "agenda": agenda, "por_fecha": por_fecha, "desde": desde, "hasta": hasta,
-        "form_generar": GenerarCuposForm(), "form_bloquear_dia": BloquearDiaForm(initial={"fecha": desde}),
+            abrir_modal = True
+    bloques = prof.agendas.filter(activa=True).select_related("policlinico").order_by("dia_semana", "hora_inicio") if prof else []
+    return render(request, "agenda/horario.html", {
+        "especialidades": especialidades, "esp": esp, "profesionales": profesionales, "prof": prof,
+        "bloques": bloques, "form": form, "abrir_modal": abrir_modal, "es_admin_agenda": es_admin,
+        "tabs": _tabs(request, prof), "tab": "horario",
     })
 
 
-def _volver(request, agenda_id):
-    siguiente = request.POST.get("next")
-    if siguiente and url_has_allowed_host_and_scheme(siguiente, {request.get_host()}):
-        return redirect(siguiente)
-    return redirect("agenda:detalle", pk=agenda_id)
-
-
-@solo_admin
+@roles.rol_requerido(roles.ADMINISTRACION)
 @require_POST
-def generar(request, pk):
+def quitar_bloque(request, pk):
     agenda = get_object_or_404(Agenda, pk=pk)
-    form = GenerarCuposForm(request.POST)
-    if form.is_valid():
-        try:
-            n = servicio.generar_cupos(agenda, form.cleaned_data["desde"], form.cleaned_data["hasta"], request.user)
-            messages.success(request, f"Se generaron {n} cupos nuevos (los existentes no se duplican).")
-        except ReglaNegocioError as e:
-            messages.error(request, str(e))
-    else:
-        messages.error(request, " ".join(form.non_field_errors()) or "Revise las fechas.")
-    return _volver(request, pk)
+    servicio.quitar_bloque(agenda, request.user)
+    messages.success(request, "Bloque quitado del horario semanal", extra_tags="toast")
+    return redirect(f"{reverse('agenda:horario')}?profesional={agenda.profesional_id}")
 
 
-@solo_admin
+# ------------------------------------------------------------ calendario
+@tens_o_admin
+def calendario(request):
+    especialidades, esp, profesionales, prof = _seleccion(request)
+    hoy = timezone.localdate()
+    lunes = lunes_de(parse_date(request.GET.get("semana") or "") or hoy)
+    semanas = [lunes_de(hoy) + timedelta(weeks=i) for i in range(-2, 9)]
+    if lunes not in semanas:
+        semanas.append(lunes)
+        semanas.sort()
+    dias = [lunes + timedelta(days=i) for i in range(7)]
+    cupos = []
+    if prof:
+        cupos = list(Cupo.objects.filter(agenda__profesional=prof, fecha__range=(dias[0], dias[-1]))
+                     .select_related("agenda__policlinico").prefetch_related("citas"))
+    if not any(c.fecha.weekday() >= 5 for c in cupos):
+        dias = dias[:5]
+    horas = sorted({c.hora_inicio for c in cupos})
+    por_celda = {(c.fecha, c.hora_inicio): c for c in cupos}
+    filas = []
+    for h in horas:
+        celdas = []
+        for d in dias:
+            c = por_celda.get((d, h))
+            estado = None
+            if c:
+                estado = "bloqueado" if c.bloqueado else ("con_cita" if c.citas_vigentes else "disponible")
+            celdas.append({"cupo": c, "estado": estado, "pasado": d < hoy})
+        filas.append({"hora": h, "celdas": celdas})
+    return render(request, "agenda/calendario.html", {
+        "especialidades": especialidades, "esp": esp, "profesionales": profesionales, "prof": prof,
+        "semanas": [(s, rango_semana(s)) for s in semanas], "lunes": lunes,
+        "dias": [(d, f"{DIAS_CORTOS[d.weekday()]} {d.day}") for d in dias], "filas": filas,
+        "tabs": _tabs(request, prof), "tab": "calendario", "n_columnas": len(dias),
+    })
+
+
+@tens_o_admin
 @require_POST
-def bloquear_cupo(request, pk):
-    cupo = get_object_or_404(Cupo, pk=pk)
-    try:
-        servicio.bloquear_cupo(cupo, request.POST.get("motivo", "").strip(), request.user)
-        messages.success(request, f"Cupo {cupo.fecha:%d/%m} {cupo.hora_inicio:%H:%M} bloqueado.")
-    except ReglaNegocioError as e:
-        messages.error(request, str(e))
-    return _volver(request, cupo.agenda_id)
-
-
-@solo_admin
-@require_POST
-def liberar_cupo(request, pk):
-    cupo = get_object_or_404(Cupo, pk=pk)
-    servicio.liberar_cupo(cupo, request.user)
-    messages.success(request, f"Cupo {cupo.fecha:%d/%m} {cupo.hora_inicio:%H:%M} liberado.")
-    return _volver(request, cupo.agenda_id)
-
-
-@solo_admin
-@require_POST
-def bloquear_dia(request, pk):
-    agenda = get_object_or_404(Agenda, pk=pk)
-    form = BloquearDiaForm(request.POST)
-    if form.is_valid():
-        b, o = servicio.bloquear_dia(agenda, form.cleaned_data["fecha"], form.cleaned_data["motivo"], request.user)
-        messages.success(request, f"{b} cupos bloqueados.")
+def calendario_accion(request):
+    ids = [int(x) for x in request.POST.getlist("cupo") if x.isdigit()]
+    cupos = list(Cupo.objects.filter(pk__in=ids, fecha__gte=timezone.localdate()).prefetch_related("citas"))
+    accion = request.POST.get("accion")
+    if not cupos:
+        messages.error(request, "Selecciona uno o más bloques.")
+    elif accion == "bloquear":
+        b, o = servicio.bloquear_varios(cupos, request.POST.get("motivo", "").strip(), request.user)
+        messages.success(request, f"{b} hora{'s' if b != 1 else ''} bloqueada{'s' if b != 1 else ''}", extra_tags="toast")
         if o:
-            messages.warning(request, f"{o} cupos no se bloquearon porque tienen citas vigentes.")
-    else:
-        messages.error(request, "Indique una fecha válida.")
-    return _volver(request, pk)
+            messages.warning(request, f"{o} bloque(s) con cita no se bloquearon: la cita sigue ocupando la hora.")
+    elif accion == "liberar":
+        maximo = int(request.POST.get("de_a_poco") or 0) or None
+        n = servicio.liberar_varios(cupos, request.user, maximo)
+        messages.success(request, f"{n} hora{'s' if n != 1 else ''} liberada{'s' if n != 1 else ''}: vuelven a estar disponibles", extra_tags="toast")
+    params = {k: request.POST.get(k) for k in ("especialidad", "profesional", "semana") if request.POST.get(k)}
+    return redirect(f"{reverse('agenda:calendario')}?{urlencode(params)}")

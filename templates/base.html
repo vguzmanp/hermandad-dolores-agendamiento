@@ -7,75 +7,53 @@
   <link rel="stylesheet" href="{% static 'vendor/bootstrap.min.css' %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
-<body class="bg-light">
+<body>
 {% if user.is_authenticated %}
-<nav class="navbar navbar-expand-lg navbar-dark bg-hd mb-4">
-  <div class="container-fluid">
-    <a class="navbar-brand fw-semibold" href="{% url 'home' %}">Hermandad de Dolores</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menu" aria-label="Menú">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="menu">
-      <ul class="navbar-nav me-auto">
-        {% if es_tens or es_admin %}
-        <li class="nav-item"><a class="nav-link" href="{% url 'pacientes:lista' %}">Pacientes</a></li>
-        {% endif %}
-        {% if es_tens %}
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Citas</a>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{% url 'citas:disponibilidad' %}">Disponibilidad y agendamiento</a></li>
-            <li><a class="dropdown-item" href="{% url 'citas:lista' %}">Listado de citas</a></li>
-            <li><a class="dropdown-item" href="{% url 'citas:recordatorios' %}">Recordatorios pendientes</a></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="{% url 'citas:mensajes' %}">Mensajes enviados</a></li>
-          </ul>
-        </li>
-        <li class="nav-item"><a class="nav-link" href="{% url 'lista_espera:lista' %}">Lista de espera</a></li>
-        <li class="nav-item"><a class="nav-link" href="{% url 'asistencia:lista' %}">Asistencia</a></li>
-        {% endif %}
-        {% if es_admin %}
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Configuración</a>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{% url 'profesionales:lista' %}">Profesionales</a></li>
-            <li><a class="dropdown-item" href="{% url 'profesionales:especialidades' %}">Especialidades</a></li>
-            <li><a class="dropdown-item" href="{% url 'profesionales:policlinicos' %}">Policlínicos</a></li>
-          </ul>
-        </li>
-        <li class="nav-item"><a class="nav-link" href="{% url 'agenda:lista' %}">Agendas y cupos</a></li>
-        {% endif %}
-        {% if es_profesional and not es_tens %}
-        <li class="nav-item"><a class="nav-link" href="{% url 'citas:lista' %}">Mis citas</a></li>
-        {% endif %}
-        {% if es_admin or es_profesional %}
-        <li class="nav-item"><a class="nav-link" href="{% url 'reportes:inicio' %}">Reportes</a></li>
-        {% endif %}
+<header class="hd-header">
+  <a class="marca" href="{% url 'home' %}">
+    <span class="logo">{% include "includes/icono.html" with n="cruz" t=22 %}</span>
+    <span><span class="nombre d-block">Hermandad de Dolores</span><span class="sub">Sistema de gestión · {{ rol_visible }}</span></span>
+  </a>
+  <div class="derecha">
+    <a class="campana" href="{% url 'home' %}" title="Alertas: avisos con falla y citas sin respuesta">
+      {% include "includes/icono.html" with n="campana" %}{% if alertas %}<span class="badge">{{ alertas }}</span>{% endif %}
+    </a>
+    <div class="dropdown">
+      <a class="dropdown-toggle" href="#" data-bs-toggle="dropdown">{{ rol_visible }}</a>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><span class="dropdown-item-text small text-gris">{{ user.get_full_name|default:user.username }}</span></li>
+        {% if user.is_superuser %}<li><a class="dropdown-item" href="/admin/">Panel de Django</a></li>{% endif %}
+        <li><hr class="dropdown-divider"></li>
+        <li><form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="dropdown-item">Cerrar sesión</button></form></li>
       </ul>
-      <span class="navbar-text text-white-50 me-3 small">
-        {{ user.get_full_name|default:user.username }}
-        · {% for g in user.groups.all %}{{ g.name }}{% if not forloop.last %}, {% endif %}{% empty %}{% if user.is_superuser %}Superusuario{% endif %}{% endfor %}
-      </span>
-      <form method="post" action="{% url 'logout' %}" class="d-inline">
-        {% csrf_token %}
-        <button class="btn btn-outline-light btn-sm">Cerrar sesión</button>
-      </form>
     </div>
   </div>
-</nav>
+</header>
+<div class="hd-layout">
+  <nav class="hd-sidebar">
+    {% for it in menu %}
+      {% if it %}
+      <a href="{{ it.url }}" class="{% if it.clave == menu_activo %}activo{% endif %}">{% include "includes/icono.html" with n=it.icono %}<span>{{ it.etiqueta }}</span></a>
+      {% else %}<div class="sep"></div>{% endif %}
+    {% endfor %}
+  </nav>
+  <main class="hd-main {% block fondo_main %}{% endblock %}">
+    {% include "includes/mensajes.html" %}
+    {% block contenido %}{% endblock %}
+  </main>
+</div>
+{% else %}
+  {% block publico %}{% endblock %}
 {% endif %}
-
-<main class="container{% block contenedor_fluido %}{% endblock %} pb-5">
-  {% for m in messages %}
-  <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show" role="alert">
-    {{ m }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
-  </div>
-  {% endfor %}
-  {% block contenido %}{% endblock %}
-</main>
-
 <script src="{% static 'vendor/bootstrap.bundle.min.js' %}"></script>
+<script>
+  // Los <select data-autosubmit> envían su formulario al cambiar.
+  document.querySelectorAll("[data-autosubmit]").forEach(el => el.addEventListener("change", () => el.form.submit()));
+  // Confirmación genérica para formularios con data-confirmar.
+  document.querySelectorAll("form[data-confirmar]").forEach(f => f.addEventListener("submit", e => { if (!confirm(f.dataset.confirmar)) e.preventDefault(); }));
+  // Los toasts desaparecen solos.
+  setTimeout(() => document.querySelectorAll(".toast-hd").forEach(t => t.remove()), 3500);
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

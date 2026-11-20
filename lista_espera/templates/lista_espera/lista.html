@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% load hd %}
+{% block titulo %}Lista de espera{% endblock %}
+{% block contenido %}
+<h1 class="titulo-pagina">Lista de espera</h1>
+<p class="subtitulo">Pacientes que no encontraron hora y aceptaron quedar anotados.</p>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ resumen.en_espera }}</div><div class="etiqueta">En espera</div></div></div>
+  <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ resumen.contactados }}</div><div class="etiqueta">Contactados</div></div></div>
+  <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ resumen.sin_contacto }}</div><div class="etiqueta">Sin contacto</div></div></div>
+  <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ resumen.agendados }}</div><div class="etiqueta">Agendados</div></div></div>
+</div>
+
+<form method="get" class="row g-3 mb-3">
+  <div class="col-sm-4 col-lg-3"><label class="form-label">Especialidad</label>
+    <select class="form-select" name="especialidad" data-autosubmit><option value="">Todas</option>
+      {% for e in especialidades %}<option value="{{ e.pk }}" {% if e == esp %}selected{% endif %}>{{ e.nombre }}</option>{% endfor %}</select></div>
+  <div class="col-sm-4 col-lg-3"><label class="form-label">Estado</label>
+    <select class="form-select" name="estado" data-autosubmit><option value="">Todos</option>
+      {% for v, t in estados %}<option value="{{ v }}" {% if v == estado %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+</form>
+
+<div class="row g-4">
+  <div class="col-xl-8">
+    <div class="aviso aviso-azul mb-3"><strong>Orden de llegada</strong>
+      <div class="small">Los pacientes se ordenan según su registro (RN-06). {% if puede_gestionar %}Las TENS/TONS pueden subir manualmente a un paciente en la lista.{% else %}Solo las TENS/TONS pueden cambiar el orden.{% endif %}</div></div>
+    <div class="tabla-hd"><div class="table-responsive"><table class="table">
+      <thead><tr><th>#</th><th>Paciente</th><th>Profesional</th><th>Tiempo en espera</th><th>Estado</th>{% if puede_gestionar %}<th></th>{% endif %}</tr></thead>
+      <tbody>
+      {% for s in filas %}
+      <tr class="{% if s == sel %}seleccionada{% endif %}">
+        <td>{% with n=posiciones|get:s.pk %}<span class="pill pill-gris">{% if n %}{{ n }}{% else %}—{% endif %}</span>{% endwith %}</td>
+        <td><div class="celda-principal">{{ s.paciente.nombre }}</div><div class="celda-sec">RUT {{ s.paciente.rut|rut }}</div></td>
+        <td>{% if s.profesional %}{{ s.profesional.nombre }}{% else %}Cualquier profesional{% endif %}<div class="celda-sec">{{ s.especialidad }}</div></td>
+        <td>{{ s.dias_en_espera }} día{{ s.dias_en_espera|pluralize }}<div class="celda-sec">desde {{ s.creada_en|date:"d/m" }}</div></td>
+        <td>{% if s.estado == "en_espera" %}<span class="pill pill-azul">En espera</span>{% elif s.estado == "contactado" %}<span class="pill pill-naranjo">Contactado</span>{% elif s.estado == "sin_contacto" %}<span class="pill pill-rojo">Sin contacto</span>{% elif s.estado == "agendado" %}<span class="pill pill-verde">Agendado</span>{% else %}<span class="pill pill-gris">{{ s.get_estado_display }}</span>{% endif %}</td>
+        {% if puede_gestionar %}<td class="text-end"><a class="btn btn-suave btn-xs" href="?sel={{ s.pk }}{% if filtros_qs %}&{{ filtros_qs }}{% endif %}">Gestionar</a></td>{% endif %}
+      </tr>
+      {% empty %}<tr><td colspan="6" class="text-center text-gris py-4">No hay pacientes en la lista de espera.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div></div>
+  </div>
+  <div class="col-xl-4">
+    {% if not puede_gestionar %}
+    <div class="tarjeta tarjeta-cuerpo" style="border-color: var(--hd-azul)">
+      <h2 class="h5">Solo consulta</h2>
+      <p class="small text-gris mb-0">La Administración puede ver la lista de espera. Las TENS/TONS son quienes actualizan el estado de cada paciente.</p>
+    </div>
+    {% elif sel %}
+    <div class="tarjeta tarjeta-cuerpo" style="border-color: var(--hd-azul)">
+      <h2 class="h5 mb-1">Actualizar estado</h2>
+      <div class="small text-gris mb-3">{{ sel.paciente.nombre }} · RUT {{ sel.paciente.rut|rut }}<br>Tel. {{ sel.paciente.celular }}</div>
+      <form method="post" action="{% url 'lista_espera:gestionar' sel.pk %}">
+        {% csrf_token %}<input type="hidden" name="filtros" value="{{ filtros_qs }}">
+        <label class="form-label">Estado</label>
+        <select class="form-select mb-3" name="estado">{% for v, t in estados %}<option value="{{ v }}" {% if v == sel.estado %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+        <label class="form-label">Resultado del contacto (opcional)</label>
+        <select class="form-select mb-3" name="resultado_contacto">{% for v, t in resultados %}<option value="{{ v }}" {% if v == sel.resultado_contacto %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+        <label class="form-label">Nota</label>
+        <textarea class="form-control mb-3" name="nota" rows="3">{{ sel.nota }}</textarea>
+        <button class="btn btn-primary w-100 mb-2">Guardar estado</button>
+      </form>
+      {% if sel.activa %}
+      <a class="btn btn-suave w-100 mb-2" href="{% url 'citas:agendar' %}?paciente={{ sel.paciente.pk }}&especialidad={{ sel.especialidad_id }}{% if sel.profesional_id %}&profesional={{ sel.profesional_id }}{% endif %}&espera={{ sel.pk }}">Agendar cita para este paciente</a>
+      <form method="post" action="{% url 'lista_espera:gestionar' sel.pk %}">{% csrf_token %}<input type="hidden" name="accion" value="subir"><input type="hidden" name="filtros" value="{{ filtros_qs }}">
+        <button class="btn btn-gris w-100">Subir en la lista</button></form>
+      {% elif sel.cita %}
+      <a class="btn btn-suave w-100" href="{% url 'citas:detalle' sel.cita.pk %}">Ver cita agendada</a>
+      {% endif %}
+      <p class="small text-gris mt-3 mb-0">Si no se logra contactar al paciente, sigue en la lista. «Subir» mueve al paciente un lugar hacia adelante.</p>
+    </div>
+    {% else %}
+    <div class="tarjeta tarjeta-cuerpo text-gris small">Elige «Gestionar» en un paciente para actualizar su estado, agendarle una cita o subirlo en la lista.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

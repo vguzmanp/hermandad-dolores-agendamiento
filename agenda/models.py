@@ -43,6 +43,14 @@ class Agenda(models.Model):
     def duracion_efectiva(self) -> int:
         return self.duracion_cupo_min or self.profesional.especialidad.duracion_cupo_min
 
+    @property
+    def minutos(self) -> int:
+        return (self.hora_fin.hour * 60 + self.hora_fin.minute) - (self.hora_inicio.hour * 60 + self.hora_inicio.minute)
+
+    @property
+    def cupos_por_bloque(self) -> int:
+        return self.minutos // self.duracion_efectiva
+
 
 class Cupo(models.Model):
     """Espacio concreto de atención (fecha + hora) generado desde una Agenda."""

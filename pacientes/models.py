@@ -90,3 +90,70 @@ class AdultoResponsable(models.Model):
     @property
     def rut_formateado(self) -> str:
         return formatear_rut(self.rut)
+
+
+def ruta_documento(instancia, nombre):
+    return f"documentos/{instancia.paciente.rut}/{nombre}"
+
+
+class DocumentoPaciente(models.Model):
+    class Tipo(models.TextChoices):
+        FONASA = "fonasa", "Certificado de FONASA"
+        CESFAM = "cesfam", "Inscripción al CESFAM"
+        DERIVACION = "derivacion", "Orden de derivación"
+        OTRO = "otro", "Otro certificado"
+
+    paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE, related_name="documentos")
+    tipo = models.CharField("tipo de documento", max_length=12, choices=Tipo.choices)
+    archivo = models.FileField(upload_to=ruta_documento, blank=True,
+                               help_text="Vacío solo en documentos de ejemplo de la demo.")
+    nombre = models.CharField(max_length=150)
+    tamano = models.PositiveIntegerField("tamaño (bytes)", default=0)
+    subido_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                   related_name="+", help_text="Vacío si lo adjuntó el paciente desde la web.")
+    subido_en = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-subido_en"]
+        verbose_name = "documento del paciente"
+        verbose_name_plural = "documentos del paciente"
+
+    def __str__(self):
+        return f"{self.nombre} ({self.get_tipo_display()})"
+
+    @property
+    def tamano_legible(self) -> str:
+        if self.tamano >= 1024 * 1024:
+            return f"{self.tamano / 1024 / 1024:.1f} MB".replace(".", ",")
+        return f"{max(1, round(self.tamano / 1024))} KB"
+
+    @property
+    def es_imagen(self) -> bool:
+        return self.nombre.lower().endswith((".jpg", ".jpeg", ".png"))
+
+
+class OperacionDocumento(models.Model):
+    """Historial: quién hizo qué y cuándo con los documentos del paciente."""
+
+    class Accion(models.TextChoices):
+        ADJUNTO = "adjunto", "Adjuntó documento"
+        CONSULTO = "consulto", "Consultó documento"
+        ELIMINO = "elimino", "Eliminó documento"
+
+    paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE, related_name="operaciones_documentos")
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    accion = models.CharField(max_length=10, choices=Accion.choices)
+    detalle = models.CharField(max_length=200)
+    fecha = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-fecha", "-id"]
+
+    @property
+    def quien(self) -> str:
+        if self.usuario is None:
+            return "Paciente (web)"
+        from core import roles
+        if roles.tiene_rol(self.usuario, roles.TENS) and not self.usuario.is_superuser:
+            return f"TENS/TONS · {self.usuario.get_full_name() or self.usuario.username}"
+        return self.usuario.get_full_name() or self.usuario.username

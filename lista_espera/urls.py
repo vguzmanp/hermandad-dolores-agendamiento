@@ -1,9 +1,10 @@
 from django.urls import path
 
-from core.views import pendiente
+from . import views
 
 app_name = "lista_espera"
 
 urlpatterns = [
-    path("", pendiente("Lista de espera", 6), name="lista"),
+    path("", views.lista, name="lista"),
+    path("<int:pk>/gestionar/", views.gestionar, name="gestionar"),
 ]

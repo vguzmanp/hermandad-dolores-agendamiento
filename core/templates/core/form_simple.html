@@ -1,19 +1,17 @@
 {% extends "base.html" %}
 {% block titulo %}{{ titulo|capfirst }}{% endblock %}
 {% block contenido %}
-<div class="row justify-content-center">
-  <div class="col-lg-8">
-    <h1 class="h3 mb-3">{{ titulo|capfirst }}</h1>
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <form method="post" novalidate>
-          {% csrf_token %}
-          {% include "includes/form_generico.html" %}
-          <button class="btn btn-hd">Guardar</button>
-          <a class="btn btn-link" href="{% url url_volver %}">Cancelar</a>
-        </form>
+<div style="max-width: 760px">
+  <h1 class="titulo-pagina mb-3">{{ titulo|capfirst }}</h1>
+  <div class="tarjeta tarjeta-cuerpo">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% include "includes/form_generico.html" %}
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary btn-lg-hd">Guardar</button>
+        <a class="btn btn-gris btn-lg-hd" href="{% url url_volver %}">Cancelar</a>
       </div>
-    </div>
+    </form>
   </div>
 </div>
 {% endblock %}

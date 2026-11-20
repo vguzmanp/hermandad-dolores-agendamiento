@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "lista_espera",
     "asistencia",
     "reportes",
+    "portal",  # portal público del paciente (sin cuenta)
 ]
 
 MIDDLEWARE = [
@@ -131,3 +132,7 @@ MESSAGE_TAGS = {message_constants.ERROR: "danger"}
 CITA_DIAS_AVISO_DEFECTO = int(os.getenv("CITA_DIAS_AVISO_DEFECTO", "2"))
 # Semanas de cupos que se generan por defecto desde los bloques semanales.
 AGENDA_SEMANAS_GENERACION = int(os.getenv("AGENDA_SEMANAS_GENERACION", "4"))
+# URL pública con la que se arman los links de los avisos (/c/<código>/).
+SITIO_PUBLICO_URL = os.getenv("SITIO_PUBLICO_URL", "http://127.0.0.1:8000")
+# Tamaño máximo de documentos subidos (MB).
+DOCUMENTO_MAX_MB = int(os.getenv("DOCUMENTO_MAX_MB", "10"))

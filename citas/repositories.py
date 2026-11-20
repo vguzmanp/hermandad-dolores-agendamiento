@@ -107,7 +107,8 @@ class CitaRepositoryPostgres(ICitaRepository):
         qs = (
             Cupo.objects.select_related("agenda__profesional__especialidad", "agenda__policlinico")
             .prefetch_related("citas__paciente")
-            .filter(bloqueado=False, agenda__activa=True, fecha__range=(desde, hasta))
+            .filter(bloqueado=False, agenda__activa=True, agenda__profesional__activo=True,
+                    fecha__range=(desde, hasta))
             .filter(Q(fecha__gt=hoy) | Q(hora_inicio__gte=ahora.time()))  # no ofrecer horas pasadas
         )
         if filtros.get("especialidad"):

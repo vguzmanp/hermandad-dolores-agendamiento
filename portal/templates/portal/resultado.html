@@ -1,0 +1,24 @@
+{% extends "base_publico.html" %}
+{% load hd %}
+{% block titulo %}{% if tipo == "confirmada" %}Asistencia confirmada{% elif tipo == "cancelada" %}Hora cancelada{% else %}Hora cambiada{% endif %}{% endblock %}
+{% block subtitulo_cabecera %}Confirmación de hora · sin cuenta ni clave{% endblock %}
+{% block derecha_cabecera %}{% endblock %}
+{% block cuerpo %}
+<h1 class="titulo-pagina mb-3">{% if tipo == "confirmada" %}Asistencia confirmada{% elif tipo == "cancelada" %}Hora cancelada{% else %}Hora cambiada{% endif %}</h1>
+<div class="tarjeta tarjeta-cuerpo">
+  {% if tipo == "confirmada" %}
+  <div class="aviso aviso-verde mb-3"><div class="fw-bold fs-5">Asistencia confirmada</div>Te esperamos el {{ cita.cupo.fecha|fecha_larga }} a las {{ cita.cupo.hora_inicio|time:"H:i" }}.</div>
+  {% elif tipo == "cancelada" %}
+  <div class="aviso aviso-rojo mb-3"><div class="fw-bold fs-5">Hora cancelada</div>La hora quedó libre para otro paciente. Si necesitas atención, puedes reservar una nueva hora.</div>
+  {% else %}
+  <div class="aviso aviso-verde mb-3"><div class="fw-bold fs-5">Hora cambiada</div>Tu nueva hora es el {{ cita.cupo.fecha|fecha_larga }} a las {{ cita.cupo.hora_inicio|time:"H:i" }} con {{ cita.cupo.agenda.profesional.nombre }}.</div>
+  {% endif %}
+  <p>Te enviamos este resultado por WhatsApp{% if cita.paciente.correo %} y a tu correo {{ cita.paciente.correo|enmascarar_correo }}{% endif %}.</p>
+  {% if tipo != "cancelada" %}<p class="small text-gris">Recuerda traer tu certificado de FONASA y la inscripción al CESFAM.</p>{% endif %}
+  <div class="d-flex gap-2">
+    {% if tipo != "cancelada" %}<a class="btn btn-gris btn-lg-hd" href="{% url 'portal:responder' cita.token %}">Ver mi hora</a>{% endif %}
+    {% if tipo == "cancelada" %}<a class="btn btn-primary btn-lg-hd" href="{% url 'portal:inicio' %}">Reservar una nueva hora</a>{% endif %}
+    <a class="btn {% if tipo == 'cancelada' %}btn-gris{% else %}btn-primary{% endif %} btn-lg-hd" href="{% url 'portal:aviso' cita.token %}">Volver a los avisos</a>
+  </div>
+</div>
+{% endblock %}

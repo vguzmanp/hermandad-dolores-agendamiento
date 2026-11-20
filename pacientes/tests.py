@@ -74,21 +74,65 @@ class PacienteVistasTests(TestCase):
         self.tens = crear_usuario("tens", roles.TENS)
         self.client.force_login(self.tens)
 
-    def test_buscar_rut_inexistente_redirige_a_registro(self):
+    def test_buscar_rut_inexistente_lleva_al_registro(self):
         resp = self.client.get(reverse("pacientes:buscar_rut"), {"rut": "12.345.678-5"})
-        self.assertRedirects(resp, reverse("pacientes:crear") + "?rut=12345678-5")
+        self.assertRedirects(resp, reverse("pacientes:lista") + "?rut=12345678-5")
 
     def test_registrar_por_formulario(self):
-        resp = self.client.post(reverse("pacientes:crear"), {
+        resp = self.client.post(reverse("pacientes:lista"), {
             "rut": "12.345.678-5", "nombre": "Ana Prueba", "fecha_nacimiento": "1990-05-05", "sexo": "F",
             "nacionalidad": "Chilena", "celular": "+56911111111", "correo": "", "direccion": "Calle 1",
         })
         p = Paciente.objects.get(rut="12345678-5")
-        self.assertRedirects(resp, reverse("pacientes:detalle", args=[p.pk]))
-        # Ahora la búsqueda por RUT lleva al detalle (RF-02)
+        self.assertRedirects(resp, reverse("pacientes:editar", args=[p.pk]))
+        # Ahora la búsqueda por RUT lleva a su ficha (RF-02)
         resp = self.client.get(reverse("pacientes:buscar_rut"), {"rut": "12345678-5"})
-        self.assertRedirects(resp, reverse("pacientes:detalle", args=[p.pk]))
+        self.assertRedirects(resp, reverse("pacientes:editar", args=[p.pk]))
+
+    def test_menor_exige_responsable_en_formulario(self):
+        self.client.post(reverse("pacientes:lista"), {
+            "rut": "12.345.678-5", "nombre": "Niño Prueba", "fecha_nacimiento": "2018-05-05", "sexo": "M",
+            "nacionalidad": "Chilena", "celular": "+56911111111", "direccion": "Calle 1", "requiere_responsable": "on",
+        })
+        self.assertFalse(Paciente.objects.exists())
 
     def test_profesional_no_accede_a_pacientes(self):
         self.client.force_login(crear_usuario("prof", roles.PROFESIONAL))
         self.assertEqual(self.client.get(reverse("pacientes:lista")).status_code, 403)
+
+
+class DocumentosTests(TestCase):
+    def setUp(self):
+        self.tens = crear_usuario("tens", roles.TENS)
+        self.p = Paciente.objects.create(nombre="Paciente Doc", rut="12345678-5", celular="+56900000000",
+                                         direccion="Calle 1", fecha_nacimiento=date(1990, 1, 1), sexo="F")
+        self.client.force_login(self.tens)
+
+    def subir(self, nombre="cesfam.pdf", tipo="cesfam", contenido=b"%PDF-1.4 prueba"):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        return self.client.post(reverse("documentos:lista") + f"?paciente={self.p.pk}",
+                                {"paciente": self.p.pk, "tipo": tipo, "archivo": SimpleUploadedFile(nombre, contenido)})
+
+    def test_subir_cesfam_resuelve_rn05_y_queda_en_historial(self):
+        import shutil, tempfile
+        from django.test import override_settings
+        carpeta = tempfile.mkdtemp()
+        try:
+            with override_settings(MEDIA_ROOT=carpeta):
+                self.assertTrue(any("RN-05" in a for a in self.p.advertencias))
+                self.subir()
+                self.p.refresh_from_db()
+                self.assertTrue(self.p.inscrito_cesfam)
+                doc = self.p.documentos.get()
+                r = self.client.get(reverse("documentos:archivo", args=[doc.pk]))
+                self.assertEqual(r.status_code, 200)
+                r.close()
+                self.client.post(reverse("documentos:eliminar", args=[doc.pk]))
+                acciones = list(self.p.operaciones_documentos.values_list("accion", flat=True))
+                self.assertCountEqual(acciones, ["adjunto", "consulto", "elimino"])
+        finally:
+            shutil.rmtree(carpeta, ignore_errors=True)
+
+    def test_formato_no_permitido(self):
+        self.subir(nombre="virus.exe")
+        self.assertFalse(self.p.documentos.exists())

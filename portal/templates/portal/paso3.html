@@ -1,0 +1,69 @@
+{% extends "base_publico.html" %}
+{% block titulo %}Datos del paciente{% endblock %}
+{% block cuerpo %}
+{% include "portal/_pasos.html" with paso=3 %}
+<h1 class="titulo-pagina">Datos del paciente</h1>
+<p class="subtitulo">Ingresa el RUT. Si ya te has atendido con nosotros, no tienes que escribir tus datos otra vez.</p>
+{% if espera %}<div class="aviso aviso-azul small mb-3">Te anotaremos en la <strong>lista de espera</strong>; la Hermandad te contactará cuando se libere una hora.</div>{% endif %}
+<div class="tarjeta tarjeta-cuerpo mb-3">
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    <a class="btn rounded-pill {% if not familiar %}btn-suave border border-primary{% else %}btn-blanco{% endif %}" href="?">Soy el paciente</a>
+    <a class="btn rounded-pill {% if familiar %}btn-suave border border-primary{% else %}btn-blanco{% endif %}" href="?quien=familiar">Pido la hora para un familiar</a>
+  </div>
+  {% if not nuevo %}
+  <form method="post" novalidate>
+    {% csrf_token %}<input type="hidden" name="paso" value="rut"><input type="hidden" name="quien" value="{% if familiar %}familiar{% endif %}">
+    <label class="form-label" for="id_rut">RUT del paciente <span class="req">*</span></label>
+    <div class="d-flex gap-2">
+      {{ form_rut.rut }}
+      <button class="btn btn-primary btn-lg-hd">Continuar</button>
+    </div>
+    {% for e in form_rut.rut.errors %}<div class="text-danger small mt-1">{{ e }}</div>{% endfor %}
+  </form>
+  {% else %}
+  <form method="post" novalidate>
+    {% csrf_token %}<input type="hidden" name="paso" value="registro"><input type="hidden" name="quien" value="{% if familiar %}familiar{% endif %}">
+    {% include "includes/campo.html" with campo=form.rut %}
+    <div class="aviso aviso-naranjo mb-3">Es la primera vez de este paciente. Completa sus datos (se piden una sola vez).</div>
+    {% for e in form.non_field_errors %}<div class="aviso aviso-rojo mb-3">{{ e }}</div>{% endfor %}
+    <div class="row">
+      <div class="col-12">{% include "includes/campo.html" with campo=form.nombre %}</div>
+      <div class="col-md-6">{% include "includes/campo.html" with campo=form.fecha_nacimiento %}</div>
+      <div class="col-md-6">{% include "includes/campo.html" with campo=form.celular %}</div>
+      <div class="col-md-6">{% include "includes/campo.html" with campo=form.correo %}</div>
+      <div class="col-md-6">{% include "includes/campo.html" with campo=form.direccion %}</div>
+      <div class="col-md-6">{% include "includes/campo.html" with campo=form.sexo %}</div>
+      <div class="col-md-6">{% include "includes/campo.html" with campo=form.nacionalidad %}</div>
+      <div class="col-12">{% include "includes/campo.html" with campo=form.requiere_responsable %}</div>
+    </div>
+    <div id="bloque-responsable" class="row">
+      <div class="col-md-6">{% include "includes/campo.html" with campo=form_resp.nombre %}</div>
+      <div class="col-md-6">{% include "includes/campo.html" with campo=form_resp.rut %}</div>
+      <div class="col-md-6">{% include "includes/campo.html" with campo=form_resp.celular %}</div>
+      <div class="col-md-6">{% include "includes/campo.html" with campo=form_resp.parentesco %}</div>
+    </div>
+    <button class="btn btn-primary btn-lg-hd">Guardar datos y continuar</button>
+  </form>
+  {% endif %}
+</div>
+<a class="btn btn-gris btn-lg-hd" href="{{ volver }}">Volver</a>
+{% endblock %}
+{% block scripts %}
+{% if nuevo %}
+<script>
+(function () {
+  const fnac = document.getElementById("id_fecha_nacimiento"), req = document.getElementById("id_requiere_responsable"),
+        bloque = document.getElementById("bloque-responsable");
+  function esMenor() {
+    if (!fnac.value) return false;
+    const n = new Date(fnac.value + "T00:00:00"), h = new Date();
+    let e = h.getFullYear() - n.getFullYear();
+    if (h.getMonth() < n.getMonth() || (h.getMonth() === n.getMonth() && h.getDate() < n.getDate())) e--;
+    return e < 18;
+  }
+  function act() { if (esMenor()) req.checked = true; bloque.classList.toggle("d-none", !req.checked); }
+  fnac.addEventListener("change", act); req.addEventListener("change", act); act();
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base_publico.html" %}
+{% load hd %}
+{% block titulo %}Elige profesional y hora{% endblock %}
+{% block cuerpo %}
+{% include "portal/_pasos.html" with paso=2 %}
+<h1 class="titulo-pagina">Elige profesional y hora</h1>
+<p class="subtitulo">{{ esp.nombre }}{% if pol %} · {{ pol.nombre }}{% endif %} · horas disponibles de los próximos días</p>
+
+{% for t in tarjetas %}
+<div class="tarjeta tarjeta-cuerpo mb-3">
+  <div class="row g-3">
+    <div class="col-md-3">
+      <div class="avatar mb-2">{{ t.p.nombre|iniciales }}</div>
+      <div class="celda-principal fs-5">{{ t.p.nombre }}</div>
+      <div class="text-gris">{{ t.p.especialidad }}</div>
+    </div>
+    <div class="col-md-9">
+      {% if t.dias %}
+      <div class="chips mb-3">
+        {% for d in t.dias %}<a class="chip-dia {% if d.activo %}activo{% endif %}" href="{{ d.url }}"><div class="d">{{ d.texto }}</div><div class="n {% if not d.n %}cero{% endif %}">{% if d.n %}{{ d.n }} hora{{ d.n|pluralize }}{% else %}Sin horas{% endif %}</div></a>{% endfor %}
+      </div>
+      <div class="chips">
+        {% for h in t.horas %}<a class="slot {% if h.activo %}activo{% endif %}" href="{{ h.url }}" title="{{ h.c.agenda.policlinico }}">{{ h.c.hora_inicio|time:"H:i" }}</a>
+        {% empty %}<span class="text-gris">No hay horas este día.</span>{% endfor %}
+      </div>
+      {% else %}<span class="text-gris">Sin horas en los próximos días.</span>{% endif %}
+    </div>
+  </div>
+</div>
+{% empty %}
+<div class="tarjeta tarjeta-cuerpo mb-3 text-gris">No hay profesionales de {{ esp.nombre }} con esos filtros.</div>
+{% endfor %}
+
+{% if cupo_sel %}
+<form method="post" class="barra-seleccion mb-3">
+  {% csrf_token %}
+  {% for k, v in base.items %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+  <input type="hidden" name="cupo" value="{{ cupo_sel.pk }}">
+  <div><strong>{{ cupo_sel.agenda.profesional.nombre }}</strong> · {{ texto_sel }} · {{ cupo_sel.hora_inicio|time:"H:i" }} <span class="text-gris small">· {{ cupo_sel.agenda.policlinico }}</span></div>
+  <button class="btn btn-primary btn-lg-hd">Continuar</button>
+</form>
+{% endif %}
+
+{% if not total_libres %}
+<div class="aviso aviso-naranjo mb-3">
+  <strong>No hay horas disponibles por ahora.</strong>
+  <div class="mb-2">Puedes quedar en la lista de espera y la Hermandad te contactará cuando se libere una hora.</div>
+  <form method="post">{% csrf_token %}{% for k, v in base.items %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <input type="hidden" name="accion" value="espera"><button class="btn btn-primary btn-lg-hd">Anotarme en lista de espera</button></form>
+</div>
+{% endif %}
+<a class="btn btn-gris btn-lg-hd" href="{% url 'portal:inicio' %}">Volver</a>
+{% endblock %}

@@ -1,0 +1,29 @@
+{# Modal «Registrar respuesta». Botones que lo abren: data-bs-toggle="modal" data-bs-target="#modalRespuesta" data-url="..." data-detalle="..." #}
+<div class="modal fade" id="modalRespuesta" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post" id="formRespuesta">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="modal-body">
+          <h2 class="h4 mb-1">Registrar respuesta</h2>
+          <p class="text-gris mb-3"><span id="detalleRespuesta"></span>. Úsalo cuando el paciente respondió por teléfono o en persona, o no respondió.</p>
+          <label class="opcion-radio"><input class="form-check-input m-0" type="radio" name="respuesta" value="confirmar" checked> Confirmó la cita</label>
+          <label class="opcion-radio"><input class="form-check-input m-0" type="radio" name="respuesta" value="cancelar"> Canceló la cita</label>
+          <label class="opcion-radio"><input class="form-check-input m-0" type="radio" name="respuesta" value="sin_respuesta"> Sin respuesta</label>
+          <div class="d-flex justify-content-end gap-2 mt-4">
+            <button type="button" class="btn btn-gris btn-lg-hd" data-bs-dismiss="modal">Cancelar</button>
+            <button class="btn btn-primary btn-lg-hd">Guardar respuesta</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+document.getElementById("modalRespuesta").addEventListener("show.bs.modal", e => {
+  const b = e.relatedTarget;
+  document.getElementById("formRespuesta").action = b.dataset.url;
+  document.getElementById("detalleRespuesta").textContent = b.dataset.detalle;
+});
+</script>

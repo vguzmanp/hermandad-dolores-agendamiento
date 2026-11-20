@@ -204,26 +204,76 @@ class ReglasAdicionales(CitasBase):
         self.assertIsInstance(CitaRepositoryPostgres(), ICitaRepository)
 
 
+class ReagendarTests(CitasBase):
+    def test_reagendar_libera_la_hora_anterior(self):
+        cita = self.agendar(self.p1)
+        otro = Cupo.objects.filter(fecha=self.manana).exclude(pk=self.cupo.pk).first()
+        nueva = self.servicio.reagendar(cita, otro, self.tens)
+        cita.refresh_from_db()
+        self.assertEqual(cita.estado, Estado.CANCELADA)
+        self.assertEqual(nueva.cupo, otro)
+        self.agendar(self.p2)  # la hora original quedó libre
+
+    def test_reagendar_a_hora_ocupada_no_cambia_nada(self):
+        cita = self.agendar(self.p1)
+        otro = Cupo.objects.filter(fecha=self.manana).exclude(pk=self.cupo.pk).first()
+        self.agendar(self.p2, cupo=otro)
+        with self.assertRaises(CupoNoDisponibleError):
+            self.servicio.reagendar(cita, otro, self.tens)
+        cita.refresh_from_db()
+        self.assertEqual(cita.estado, Estado.AGENDADA)  # rollback: la cita original sigue vigente
+
+    def test_aviso_falla_con_celular_invalido(self):
+        self.p1.celular = "+56 2 2345 6789"
+        self.p1.save()
+        cita = self.agendar(self.p1)
+        self.assertFalse(self.confirmacion.enviar_recordatorio(cita, self.tens))
+        cita.refresh_from_db()
+        self.assertEqual(cita.estado_aviso, "fallido")
+
+
 class CitasVistasTests(CitasBase):
+    def url_agendar(self):
+        return (f"{reverse('citas:agendar')}?paciente={self.p1.pk}&especialidad={self.esp.pk}"
+                f"&profesional={self.prof.pk}&fecha={self.manana.isoformat()}")
+
     def test_flujo_completo_por_interfaz(self):
         self.client.force_login(self.tens)
-        r = self.client.get(reverse("citas:disponibilidad"), {"desde": self.manana.isoformat()})
-        self.assertContains(r, "Agendar")
-        r = self.client.post(reverse("citas:agendar", args=[self.cupo.pk]), {"rut": self.p1.rut, "sesiones": 1, "dias_aviso": 2})
+        r = self.client.get(self.url_agendar())
+        self.assertContains(r, self.cupo.hora_inicio.strftime("%H:%M"))
+        datos = {"paciente": self.p1.pk, "especialidad": self.esp.pk, "profesional": self.prof.pk,
+                 "canal": "telefono", "cupo": self.cupo.pk, "tipo": "normal"}
+        self.client.post(reverse("citas:agendar"), datos)
         cita = Cita.objects.get(paciente=self.p1)
-        self.assertRedirects(r, reverse("citas:detalle", args=[cita.pk]))
+        self.assertEqual(cita.canal, "telefono")
         # doble asignación por interfaz: rechazada con mensaje
-        r = self.client.post(reverse("citas:agendar", args=[self.cupo.pk]), {"rut": self.p2.rut, "sesiones": 1, "dias_aviso": 2}, follow=True)
+        r = self.client.post(reverse("citas:agendar"), {**datos, "paciente": self.p2.pk}, follow=True)
         self.assertContains(r, "RN-02")
-        # simular "no responde" y luego sobrecupo
-        self.client.post(reverse("citas:accion", args=[cita.pk, "sin_respuesta"]))
-        r = self.client.post(reverse("citas:sobrecupo", args=[self.cupo.pk]), {"rut": self.p2.rut, "dias_aviso": 2})
+        # «Registrar respuesta: sin respuesta» y luego sobrecupo
+        self.client.post(reverse("citas:accion", args=[cita.pk, "respuesta"]), {"respuesta": "sin_respuesta"})
+        self.client.post(reverse("citas:agendar"), {**datos, "paciente": self.p2.pk, "tipo": "sobrecupo"})
         self.assertEqual(Cita.objects.filter(cupo=self.cupo, es_sobrecupo=True).count(), 1)
-        for url in [reverse("citas:lista"), reverse("citas:recordatorios"), reverse("citas:mensajes"),
-                    reverse("citas:detalle", args=[cita.pk]), reverse("pacientes:detalle", args=[self.p1.pk]),
-                    reverse("home")]:
+        for url in [reverse("citas:lista"), reverse("citas:mensajes"), reverse("citas:detalle", args=[cita.pk]),
+                    reverse("home"), self.url_agendar()]:
             self.assertEqual(self.client.get(url).status_code, 200, url)
+
+    def test_reagendar_por_interfaz(self):
+        cita = self.agendar(self.p1)
+        otro = Cupo.objects.filter(fecha=self.manana).exclude(pk=self.cupo.pk).first()
+        self.client.force_login(self.tens)
+        self.client.post(reverse("citas:agendar"), {"paciente": self.p1.pk, "cupo": otro.pk, "tipo": "normal",
+                                                    "reagendar": cita.pk})
+        cita.refresh_from_db()
+        self.assertEqual(cita.estado, Estado.CANCELADA)
+        self.assertTrue(Cita.objects.filter(paciente=self.p1, cupo=otro, estado=Estado.AGENDADA).exists())
+
+    def test_anotar_en_lista_de_espera(self):
+        from lista_espera.models import SolicitudEspera
+        self.client.force_login(self.tens)
+        self.client.post(reverse("citas:agendar"), {"accion": "espera", "paciente": self.p1.pk,
+                                                    "especialidad": self.esp.pk, "profesional": self.prof.pk})
+        self.assertTrue(SolicitudEspera.objects.filter(paciente=self.p1, estado="en_espera").exists())
 
     def test_administracion_no_agenda(self):
         self.client.force_login(self.admin)
-        self.assertEqual(self.client.get(reverse("citas:agendar", args=[self.cupo.pk])).status_code, 403)
+        self.assertEqual(self.client.get(reverse("citas:agendar")).status_code, 403)
