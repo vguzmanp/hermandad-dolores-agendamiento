@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block titulo %}{% if agenda %}Editar agenda{% else %}Nueva agenda{% endif %}{% endblock %}
+{% block contenido %}
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+    <h1 class="h3 mb-3">{% if agenda %}Editar agenda{% else %}Nueva agenda (bloque semanal){% endif %}</h1>
+    <div class="card shadow-sm"><div class="card-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+        <div class="row">
+          <div class="col-md-6">{% include "includes/campo.html" with campo=form.profesional %}</div>
+          <div class="col-md-6">{% include "includes/campo.html" with campo=form.policlinico %}</div>
+          <div class="col-md-4">{% include "includes/campo.html" with campo=form.dia_semana %}</div>
+          <div class="col-md-4">{% include "includes/campo.html" with campo=form.hora_inicio %}</div>
+          <div class="col-md-4">{% include "includes/campo.html" with campo=form.hora_fin %}</div>
+          <div class="col-md-4">{% include "includes/campo.html" with campo=form.duracion_cupo_min %}</div>
+          <div class="col-md-4">{% include "includes/campo.html" with campo=form.vigente_desde %}</div>
+          <div class="col-md-4">{% include "includes/campo.html" with campo=form.vigente_hasta %}</div>
+          <div class="col-md-6">{% include "includes/campo.html" with campo=form.generar_semanas %}</div>
+          <div class="col-md-6 pt-md-4">{% include "includes/campo.html" with campo=form.activa %}</div>
+        </div>
+        <button class="btn btn-hd">Guardar</button>
+        <a class="btn btn-link" href="{% if agenda %}{% url 'agenda:detalle' agenda.pk %}{% else %}{% url 'agenda:lista' %}{% endif %}">Cancelar</a>
+      </form>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

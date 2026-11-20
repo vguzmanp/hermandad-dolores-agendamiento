@@ -6,15 +6,19 @@ Carga datos ficticios para la demostración.
 
 Todos los datos (nombres, RUT, teléfonos, policlínicos) son FICTICIOS.
 """
-from datetime import date
+from datetime import date, time, timedelta
 
 from django.contrib.auth.models import Group, User
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils import timezone
 
+from agenda.models import Agenda, Cupo
+from agenda.services import AgendaService
 from core import roles
 from pacientes.models import AdultoResponsable, Paciente
 from pacientes.rut import calcular_dv
+from profesionales.models import Especialidad, Policlinico, Profesional
 
 CLAVE_DEMO = "demo1234"
 
@@ -46,6 +50,49 @@ RESPONSABLES_DEMO = {
     23456789: ("Paula Leiva Contreras", 15678901, "Madre", "+56912120003"),
     6543219: ("Marcela Gutiérrez Pino", 11223344, "Hija (dependencia severa)", "+56977770004"),
 }
+
+# 6 policlínicos + Telemedicina (nombres ficticios)
+POLICLINICOS_DEMO = [
+    ("Policlínico San Lázaro", "Av. Matucana 1020, Santiago", False),
+    ("Policlínico Santa Rosa", "Santa Rosa 455, Santiago", False),
+    ("Policlínico Los Olivos", "Los Olivos 210, Recoleta", False),
+    ("Policlínico Nuestra Señora del Carmen", "Independencia 1345, Independencia", False),
+    ("Policlínico El Buen Samaritano", "San Pablo 2789, Quinta Normal", False),
+    ("Policlínico Santa Clara", "Av. Ecuador 3890, Estación Central", False),
+    ("Telemedicina", "Atención remota por videollamada", True),
+]
+
+# nombre, duración cupo (min), sesiones por tratamiento, permite agendar todas las sesiones
+ESPECIALIDADES_DEMO = [
+    ("Medicina General", 30, 1, False),
+    ("Kinesiología", 45, 10, True),
+    ("Psicología", 45, 8, True),
+    ("Fonoaudiología", 45, 6, True),
+    ("Nutrición", 30, 1, False),
+    ("Podología", 30, 1, False),
+]
+
+# nombre, rut, especialidad, usuario demo
+PROFESIONALES_DEMO = [
+    ("Andrés Soto Valenzuela", 13579246, "Medicina General", "profesional"),
+    ("Daniela Herrera Campos", 14682579, "Medicina General", None),
+    ("Felipe Navarro Ibáñez", 15793680, "Kinesiología", None),
+    ("Constanza Vidal Riquelme", 16804791, "Psicología", None),
+    ("Ignacio Paredes Molina", 17915802, "Fonoaudiología", None),
+    ("Fernanda Lagos Espinoza", 12468013, "Nutrición", None),
+    ("Rodrigo Cáceres Toro", 11357924, "Podología", None),
+]
+
+# profesional (índice), policlínico (índice), día (0=lunes), hora inicio, hora fin
+AGENDAS_DEMO = [
+    (0, 0, 0, "09:00", "12:00"), (0, 0, 2, "09:00", "12:00"), (0, 6, 4, "15:00", "17:00"),
+    (1, 1, 1, "08:30", "12:30"), (1, 3, 3, "14:00", "17:00"),
+    (2, 2, 0, "14:00", "17:00"), (2, 2, 2, "14:00", "17:00"), (2, 4, 4, "09:00", "12:00"),
+    (3, 5, 1, "15:00", "18:00"), (3, 6, 3, "09:00", "12:00"),
+    (4, 3, 0, "09:00", "12:00"), (4, 1, 3, "09:00", "12:00"),
+    (5, 4, 1, "09:00", "12:00"), (5, 6, 4, "10:00", "12:00"),
+    (6, 0, 3, "14:00", "16:00"), (6, 5, 4, "09:00", "11:00"),
+]
 
 USUARIOS_DEMO = [
     # username, nombre, apellido, rol, es_superusuario
@@ -94,11 +141,17 @@ class Command(BaseCommand):
 
     # --------------------------------------------------------------- dominio
     def borrar_datos(self):
+        Cupo.objects.all().delete()
+        Agenda.objects.all().delete()
+        Profesional.objects.all().delete()
+        Especialidad.objects.all().delete()
+        Policlinico.objects.all().delete()
         Paciente.objects.all().delete()
         self.stdout.write("  Datos de dominio eliminados.")
 
     def cargar_dominio(self, usuarios):
         self.cargar_pacientes(usuarios["tens"])
+        self.cargar_agendas(usuarios)
 
     def cargar_pacientes(self, tens):
         for nombre, cuerpo, nac, sexo, nacionalidad, celular, correo, direccion, cesfam in PACIENTES_DEMO:
@@ -117,3 +170,42 @@ class Command(BaseCommand):
                     paciente=p, defaults=dict(nombre=r_nombre, rut=rut(r_rut), parentesco=parentesco, celular=r_cel)
                 )
         self.stdout.write(f"  Pacientes: {Paciente.objects.count()}")
+
+    def cargar_agendas(self, usuarios):
+        polis = []
+        for nombre, direccion, tele in POLICLINICOS_DEMO:
+            pol, _ = Policlinico.objects.update_or_create(
+                nombre=nombre, defaults={"direccion": direccion, "es_telemedicina": tele}
+            )
+            polis.append(pol)
+        esps = {}
+        for nombre, dur, ses, todas in ESPECIALIDADES_DEMO:
+            esps[nombre], _ = Especialidad.objects.update_or_create(
+                nombre=nombre,
+                defaults={"duracion_cupo_min": dur, "sesiones_por_tratamiento": ses, "permite_agendar_todas_sesiones": todas},
+            )
+        profs = []
+        for nombre, cuerpo, esp, username in PROFESIONALES_DEMO:
+            prof, _ = Profesional.objects.update_or_create(
+                rut=rut(cuerpo),
+                defaults={"nombre": nombre, "especialidad": esps[esp], "usuario": usuarios.get(username),
+                          "correo": f"{nombre.split()[0].lower()}@demo.cl"},
+            )
+            profs.append(prof)
+
+        servicio = AgendaService()
+        admin = usuarios["administracion"]
+        hoy = timezone.localdate()
+        inicio_semana = hoy - timedelta(days=hoy.weekday())
+        n_cupos = 0
+        for i_prof, i_pol, dia, hi, hf in AGENDAS_DEMO:
+            agenda, _ = Agenda.objects.get_or_create(
+                profesional=profs[i_prof], policlinico=polis[i_pol], dia_semana=dia,
+                hora_inicio=time.fromisoformat(hi),
+                defaults={"hora_fin": time.fromisoformat(hf), "vigente_desde": inicio_semana},
+            )
+            n_cupos += servicio.generar_cupos(agenda, hoy, None, admin)
+        self.stdout.write(
+            f"  Policlínicos: {len(polis)} · Especialidades: {len(esps)} · Profesionales: {len(profs)} · "
+            f"Agendas: {Agenda.objects.count()} · Cupos nuevos: {n_cupos}"
+        )

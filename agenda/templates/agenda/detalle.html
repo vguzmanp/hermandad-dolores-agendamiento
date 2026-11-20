@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block titulo %}Cupos de agenda{% endblock %}
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="h3 mb-0">{{ agenda.profesional.nombre }}</h1>
+    <div class="text-muted">{{ agenda.profesional.especialidad }} · {{ agenda.policlinico }} ·
+      {{ agenda.get_dia_semana_display }} {{ agenda.hora_inicio|time:"H:i" }}–{{ agenda.hora_fin|time:"H:i" }} · cupos de {{ agenda.duracion_efectiva }} min
+      {% if not agenda.activa %}<span class="badge text-bg-secondary">Inactiva</span>{% endif %}</div>
+  </div>
+  <div>
+    <a class="btn btn-outline-secondary" href="{% url 'agenda:editar' agenda.pk %}">Editar agenda</a>
+    <a class="btn btn-link" href="{% url 'agenda:lista' %}">Volver</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100"><div class="card-body">
+      <h2 class="h6">Generar cupos desde el bloque semanal</h2>
+      <form method="post" action="{% url 'agenda:generar' agenda.pk %}" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <div class="col"><label class="form-label small">Desde</label>{{ form_generar.desde }}</div>
+        <div class="col"><label class="form-label small">Hasta</label>{{ form_generar.hasta }}</div>
+        <div class="col-auto"><button class="btn btn-hd">Generar</button></div>
+      </form>
+    </div></div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card shadow-sm h-100"><div class="card-body">
+      <h2 class="h6">Bloquear un día completo</h2>
+      <form method="post" action="{% url 'agenda:bloquear_dia' agenda.pk %}" class="row g-2 align-items-end">
+        {% csrf_token %}
+        <div class="col-5"><label class="form-label small">Fecha</label>{{ form_bloquear_dia.fecha }}</div>
+        <div class="col"><label class="form-label small">Motivo</label>{{ form_bloquear_dia.motivo }}</div>
+        <div class="col-auto"><button class="btn btn-outline-danger">Bloquear</button></div>
+      </form>
+    </div></div>
+  </div>
+</div>
+
+<form class="row g-2 mb-3 align-items-end" method="get">
+  <div class="col-auto"><label class="form-label small mb-0">Ver desde</label><input type="date" class="form-control" name="desde" value="{{ desde|date:'Y-m-d' }}"></div>
+  <div class="col-auto"><label class="form-label small mb-0">hasta</label><input type="date" class="form-control" name="hasta" value="{{ hasta|date:'Y-m-d' }}"></div>
+  <div class="col-auto"><button class="btn btn-outline-secondary">Filtrar</button></div>
+</form>
+
+{% for fecha, cupos in por_fecha %}
+<div class="card shadow-sm mb-3">
+  <div class="card-header fw-semibold">{{ fecha|date:"l d \d\e F \d\e Y"|capfirst }}</div>
+  <div class="table-responsive">
+  <table class="table table-sm mb-0">
+    <tbody>
+    {% for c in cupos %}
+    <tr class="cupo-{% if c.estado == 'libre' %}libre{% elif c.estado == 'bloqueado' %}bloqueado{% elif c.estado == 'con_sobrecupo' or c.estado == 'sobrecupo_disponible' %}sobrecupo{% else %}ocupado{% endif %}">
+      <td class="text-nowrap" style="width: 9rem">{{ c.hora_inicio|time:"H:i" }}–{{ c.hora_fin|time:"H:i" }}</td>
+      <td style="width: 16rem">{{ c.estado_display }}{% if c.bloqueado and c.motivo_bloqueo %} <span class="small">({{ c.motivo_bloqueo }})</span>{% endif %}</td>
+      <td class="small">{% for cita in c.citas_vigentes %}{{ cita.paciente.nombre }}{% if cita.es_sobrecupo %} <span class="badge text-bg-warning">sobrecupo</span>{% endif %} <span class="badge badge-estado-{{ cita.estado }}">{{ cita.get_estado_display }}</span>{% if not forloop.last %}<br>{% endif %}{% endfor %}</td>
+      <td class="text-end">
+        {% if c.bloqueado %}
+        <form method="post" action="{% url 'agenda:liberar_cupo' c.pk %}" class="d-inline">{% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <button class="btn btn-sm btn-outline-success">Liberar</button></form>
+        {% elif c.estado == 'libre' %}
+        <form method="post" action="{% url 'agenda:bloquear_cupo' c.pk %}" class="d-inline-flex gap-1">{% csrf_token %}
+          <input type="hidden" name="next" value="{{ request.get_full_path }}">
+          <input class="form-control form-control-sm" name="motivo" placeholder="Motivo (opcional)" style="width: 12rem">
+          <button class="btn btn-sm btn-outline-danger">Bloquear</button></form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% empty %}
+<div class="alert alert-info">No hay cupos en el rango seleccionado. Use «Generar cupos» para crearlos desde el bloque semanal.</div>
+{% endfor %}
+{% endblock %}

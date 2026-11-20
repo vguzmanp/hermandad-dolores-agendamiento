@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block titulo %}Policlínicos{% endblock %}
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Policlínicos</h1>
+  <a class="btn btn-hd" href="{% url 'profesionales:policlinico_crear' %}">+ Nuevo policlínico</a>
+</div>
+<div class="card shadow-sm"><div class="table-responsive">
+<table class="table table-hover mb-0">
+  <thead class="table-light"><tr><th>Nombre</th><th>Dirección</th><th>Tipo</th><th>Agendas activas</th><th>Estado</th><th></th></tr></thead>
+  <tbody>
+  {% for p in policlinicos %}
+  <tr>
+    <td>{{ p.nombre }}</td>
+    <td>{{ p.direccion|default:"—" }}</td>
+    <td>{% if p.es_telemedicina %}<span class="badge text-bg-info">Telemedicina</span>{% else %}Presencial{% endif %}</td>
+    <td>{{ p.n_agendas }}</td>
+    <td>{% if p.activo %}<span class="badge text-bg-success">Activo</span>{% else %}<span class="badge text-bg-secondary">Inactivo</span>{% endif %}</td>
+    <td class="text-end text-nowrap">
+      <a class="btn btn-sm btn-outline-primary" href="{% url 'agenda:lista' %}?policlinico={{ p.pk }}">Agendas</a>
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'profesionales:policlinico_editar' p.pk %}">Editar</a>
+    </td>
+  </tr>
+  {% empty %}<tr><td colspan="6" class="text-center text-muted py-4">No hay policlínicos.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div></div>
+{% endblock %}

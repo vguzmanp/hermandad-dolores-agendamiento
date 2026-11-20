@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo|capfirst }}{% endblock %}
+{% block contenido %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <h1 class="h3 mb-3">{{ titulo|capfirst }}</h1>
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {% include "includes/form_generico.html" %}
+          <button class="btn btn-hd">Guardar</button>
+          <a class="btn btn-link" href="{% url url_volver %}">Cancelar</a>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
