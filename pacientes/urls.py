@@ -1,11 +1,13 @@
 from django.urls import path
 
-from core.views import pendiente
+from . import views
 
 app_name = "pacientes"
 
 urlpatterns = [
-    path("", pendiente("Pacientes", 2), name="lista"),
-    path("buscar_rut/", pendiente("Pacientes", 2), name="buscar_rut"),
-    path("crear/", pendiente("Pacientes", 2), name="crear"),
+    path("", views.lista, name="lista"),
+    path("buscar/", views.buscar_rut, name="buscar_rut"),
+    path("nuevo/", views.crear, name="crear"),
+    path("<int:pk>/", views.detalle, name="detalle"),
+    path("<int:pk>/editar/", views.editar, name="editar"),
 ]

@@ -6,13 +6,46 @@ Carga datos ficticios para la demostración.
 
 Todos los datos (nombres, RUT, teléfonos, policlínicos) son FICTICIOS.
 """
+from datetime import date
+
 from django.contrib.auth.models import Group, User
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from core import roles
+from pacientes.models import AdultoResponsable, Paciente
+from pacientes.rut import calcular_dv
 
 CLAVE_DEMO = "demo1234"
+
+
+def rut(cuerpo: int) -> str:
+    return f"{cuerpo}-{calcular_dv(cuerpo)}"
+
+
+# nombre, rut, nacimiento, sexo, nacionalidad, celular, correo, dirección, cesfam (None = sin inscripción)
+PACIENTES_DEMO = [
+    ("María José Pérez Lagos", 15234871, date(1985, 3, 14), "F", "Chilena", "+56911112222", "mjperez@demo.cl", "Av. Los Aromos 123, Santiago", "CESFAM Villa Esperanza"),
+    ("Juan Carlos Fuentes Díaz", 9876543, date(1958, 7, 2), "M", "Chilena", "+56922223333", "", "Pasaje Las Rosas 45, Santiago", "CESFAM Villa Esperanza"),
+    ("Ana Luisa Contreras Vera", 18765432, date(1993, 11, 21), "F", "Chilena", "+56933334444", "ana.contreras@demo.cl", "Calle Nueva 890, Independencia", None),
+    ("Pedro Antonio Morales Silva", 12345670, date(1971, 1, 30), "M", "Chilena", "+56944445555", "", "Av. Central 1500, Recoleta", "CESFAM Los Almendros"),
+    ("Valentina Ignacia Torres Rojas", 24123456, date(2015, 5, 9), "F", "Chilena", "+56955556666", "", "Los Jazmines 77, Santiago", "CESFAM Los Almendros"),
+    ("Tomás Benjamín Araya Núñez", 25234567, date(2018, 9, 17), "M", "Chilena", "+56966667777", "", "Los Jazmines 79, Santiago", None),
+    ("Rosa Elena Gutiérrez Pino", 6543219, date(1949, 12, 3), "F", "Chilena", "+56977778888", "", "San Pablo 3456, Quinta Normal", "CESFAM Villa Esperanza"),
+    ("Luis Alberto Castillo Mena", 16789012, date(1988, 4, 25), "M", "Peruana", "+56988889999", "lcastillo@demo.cl", "Mapocho 2210, Santiago", "CESFAM Los Almendros"),
+    ("Camila Fernanda Reyes Ortiz", 19876543, date(1999, 8, 11), "F", "Chilena", "+56999990000", "camila.reyes@demo.cl", "Brasil 156, Santiago", "CESFAM Villa Esperanza"),
+    ("Jean Pierre Louis", 26345678, date(1990, 2, 19), "M", "Haitiana", "+56910101010", "", "Esperanza 34, Estación Central", None),
+    ("Sofía Antonia Bravo Leiva", 23456789, date(2010, 6, 1), "F", "Chilena", "+56912121212", "", "Huérfanos 3000, Santiago", "CESFAM Los Almendros"),
+    ("Héctor Manuel Salinas Cortés", 8765432, date(1962, 10, 8), "M", "Chilena", "+56913131313", "hsalinas@demo.cl", "Catedral 2500, Santiago", "CESFAM Villa Esperanza"),
+]
+
+# rut del paciente -> (nombre, rut, parentesco, celular)
+RESPONSABLES_DEMO = {
+    24123456: ("Claudia Rojas Méndez", 14567890, "Madre", "+56955550001"),
+    25234567: ("Ricardo Araya Soto", 13456789, "Padre", "+56966660002"),
+    23456789: ("Paula Leiva Contreras", 15678901, "Madre", "+56912120003"),
+    6543219: ("Marcela Gutiérrez Pino", 11223344, "Hija (dependencia severa)", "+56977770004"),
+}
 
 USUARIOS_DEMO = [
     # username, nombre, apellido, rol, es_superusuario
@@ -61,7 +94,26 @@ class Command(BaseCommand):
 
     # --------------------------------------------------------------- dominio
     def borrar_datos(self):
-        """Se extiende a medida que se agregan módulos."""
+        Paciente.objects.all().delete()
+        self.stdout.write("  Datos de dominio eliminados.")
 
     def cargar_dominio(self, usuarios):
-        """Se extiende a medida que se agregan módulos."""
+        self.cargar_pacientes(usuarios["tens"])
+
+    def cargar_pacientes(self, tens):
+        for nombre, cuerpo, nac, sexo, nacionalidad, celular, correo, direccion, cesfam in PACIENTES_DEMO:
+            p, _ = Paciente.objects.update_or_create(
+                rut=rut(cuerpo),
+                defaults=dict(
+                    nombre=nombre, fecha_nacimiento=nac, sexo=sexo, nacionalidad=nacionalidad,
+                    celular=celular, correo=correo, direccion=direccion,
+                    inscrito_cesfam=cesfam is not None, cesfam=cesfam or "",
+                    requiere_responsable=cuerpo in RESPONSABLES_DEMO, registrado_por=tens,
+                ),
+            )
+            if cuerpo in RESPONSABLES_DEMO:
+                r_nombre, r_rut, parentesco, r_cel = RESPONSABLES_DEMO[cuerpo]
+                AdultoResponsable.objects.update_or_create(
+                    paciente=p, defaults=dict(nombre=r_nombre, rut=rut(r_rut), parentesco=parentesco, celular=r_cel)
+                )
+        self.stdout.write(f"  Pacientes: {Paciente.objects.count()}")
