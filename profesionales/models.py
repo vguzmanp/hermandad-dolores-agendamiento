@@ -6,6 +6,11 @@ class Policlinico(models.Model):
     nombre = models.CharField(max_length=120, unique=True)
     direccion = models.CharField("dirección", max_length=200, blank=True)
     es_telemedicina = models.BooleanField("es telemedicina", default=False)
+    usuario_tens = models.OneToOneField(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="policlinico_tens",
+        verbose_name="usuario TENS/TONS",
+        help_text="Cuenta con la que las TENS/TONS de este policlínico entran al sistema (se llama como el policlínico).",
+    )
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -15,6 +20,13 @@ class Policlinico(models.Model):
 
     def __str__(self):
         return self.nombre
+
+    @property
+    def especialidades(self):
+        """Especialidades que se atienden en el policlínico (según los horarios activos)."""
+        return Especialidad.objects.filter(
+            profesionales__agendas__policlinico=self, profesionales__agendas__activa=True,
+            profesionales__activo=True, activa=True).distinct()
 
 
 class Especialidad(models.Model):
@@ -33,19 +45,25 @@ class Especialidad(models.Model):
     def __str__(self):
         return self.nombre
 
+    @property
+    def policlinicos(self):
+        """Policlínicos donde se atiende la especialidad (según los horarios activos)."""
+        return Policlinico.objects.filter(
+            agendas__profesional__especialidad=self, agendas__activa=True,
+            agendas__profesional__activo=True, activo=True).distinct()
+
 
 class Profesional(models.Model):
-    """Especialidad 1 — 0..* Profesional. Se relaciona con Policlínico mediante Agenda."""
+    """
+    Especialidad 1 — 0..* Profesional. Se relaciona con Policlínico mediante Agenda.
+    Los profesionales no usan el sistema: la Administración gestiona sus horarios.
+    """
 
     nombre = models.CharField("nombre completo", max_length=150)
     rut = models.CharField("RUT", max_length=12, unique=True)
     especialidad = models.ForeignKey(Especialidad, on_delete=models.PROTECT, related_name="profesionales")
     celular = models.CharField(max_length=20, blank=True)
     correo = models.EmailField("correo electrónico", blank=True)
-    usuario = models.OneToOneField(
-        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
-        related_name="profesional", help_text="Usuario del sistema (rol Profesional), si tiene.",
-    )
     activo = models.BooleanField(default=True)
 
     class Meta:

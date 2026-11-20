@@ -8,6 +8,6 @@ admin.site.register(Especialidad)
 
 @admin.register(Profesional)
 class ProfesionalAdmin(admin.ModelAdmin):
-    list_display = ("nombre", "rut", "especialidad", "usuario", "activo")
+    list_display = ("nombre", "rut", "especialidad", "activo")
     list_filter = ("especialidad", "activo")
     search_fields = ("nombre", "rut")

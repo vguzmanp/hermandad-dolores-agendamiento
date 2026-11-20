@@ -6,10 +6,13 @@ diseño de Figma (plantillas Django + Bootstrap 5, tipografía Inter incluida).
 
 Tiene dos caras:
 
-- **Portal del paciente (público, sin cuenta ni clave):** reservar una hora en 4 pasos,
-  anotarse en la lista de espera si no hay horas, adjuntar FONASA/CESFAM y responder el
-  aviso (confirmar, cambiar o cancelar) desde el link que recibe.
-- **Sistema de gestión (con cuenta):** TENS/TONS, Administración y Profesional.
+- **Portal del paciente (público, sin cuenta ni clave):** reservar una hora en 4 pasos
+  (especialidad → policlínico que la atiende → profesional y hora → datos), anotarse en la
+  lista de espera si no hay horas, adjuntar FONASA/CESFAM y responder el aviso (confirmar,
+  cambiar o cancelar) desde el link que recibe. Desde cualquier pantalla puede volver a la portada.
+- **Sistema de gestión (con cuenta):** Administración y TENS/TONS. Cada policlínico tiene su
+  propio usuario TENS/TONS (con el nombre del policlínico) y solo ve lo de su policlínico.
+  Los profesionales **no** usan el sistema.
 
 > **Nota sobre la base de datos:** el diseño apunta a **PostgreSQL**, pero en el equipo de
 > desarrollo PostgreSQL no está instalado, así que **por ahora se usa SQLite**
@@ -86,10 +89,12 @@ Contraseña de todos: **`demo1234`**. Los pacientes **no** tienen cuenta.
 
 | Usuario | Rol | Qué puede hacer |
 |---|---|---|
-| `tens` | TENS/TONS | Inicio con avisos del próximo día hábil, agendar (calendario, sesiones, sobrecupo, reagendar), pacientes, documentos, lista de espera (gestionar y subir), calendario de profesionales (bloquear/liberar horas), asistencia, avisos enviados |
-| `administracion` | Administración | Inicio con indicadores de 14 días, profesionales (equipo, horario semanal, bloquear/liberar), especialidades y policlínicos, lista de espera (solo consulta), reportes con CSV, documentos |
-| `profesional` | Profesional | Sus citas del día, «Mis citas» y sus estadísticas (Dr. Andrés Soto, Medicina General) |
+| `san_lazaro`, `santa_rosa`, `los_olivos`, `el_carmen`, `buen_samaritano`, `santa_clara`, `telemedicina` | TENS/TONS de ese policlínico | Solo su policlínico: inicio con avisos del próximo día hábil, agendar (calendario, sesiones, sobrecupo, reagendar), registrar o cambiar la respuesta del paciente, pacientes, documentos, lista de espera (gestionar y subir), calendario de profesionales (bloquear/liberar horas), asistencia, avisos enviados |
+| `administracion` | Administración | Todos los policlínicos: inicio con indicadores de 14 días, profesionales (equipo, horario semanal, bloquear/liberar), especialidades y policlínicos (incluye el usuario TENS de cada uno), lista de espera (solo consulta), reportes con filtros combinables y CSV, reporte de pacientes con historial, documentos |
 | `admin` | Superusuario | Todo, incluido `/admin/` de Django |
+
+`cargar_demo` indica al final con qué usuario TENS se ven los avisos del próximo día hábil
+en todos sus estados (depende del día de la semana en que se carga).
 
 ## Pruebas
 
@@ -97,7 +102,7 @@ Contraseña de todos: **`demo1234`**. Los pacientes **no** tienen cuenta.
 python manage.py test
 ```
 
-79 pruebas. Las obligatorias están en `citas/tests.py`, clase `PruebasObligatoriasRN02RN07`:
+97 pruebas. Las obligatorias están en `citas/tests.py`, clase `PruebasObligatoriasRN02RN07`:
 
 - doble asignación rechazada;
 - sobrecupo permitido cuando la cita está `sin_respuesta`;
@@ -105,10 +110,12 @@ python manage.py test
 - segundo sobrecupo rechazado;
 - la cancelación libera el cupo.
 
-Además: RUT y pacientes, agendas y cupos, reagendar con rollback, avisos con falla, portal
-del paciente (reserva, paciente nuevo con adulto responsable, hora tomada mientras se
-reservaba, lista de espera, confirmar/cancelar/cambiar por link), asistencia, lista de
-espera (orden de llegada y «subir»), documentos (RN-05 e historial) y reportes.
+Además: RUT y pacientes, agendas y cupos, reagendar con rollback, avisos (correo o WhatsApp),
+TENS limitada a su policlínico, respuesta registrada por el paciente y cambiada por la TENS,
+portal del paciente (reserva, solo policlínicos con la especialidad, paciente nuevo con adulto
+responsable, hora tomada mientras se reservaba, lista de espera, confirmar/cancelar/cambiar por
+link), asistencia, lista de espera por especialidad y policlínico (orden de llegada y «subir»),
+documentos (CESFAM e historial) y reportes con filtros combinados y reporte de pacientes.
 
 ## Arquitectura
 
@@ -122,12 +129,14 @@ citas/           Cita, AgendamientoService, ConfirmacionService, ICitaRepository
                  CitaRepositoryPostgres, INotificador, NotificadorLog
 lista_espera/    SolicitudEspera, ListaEsperaService
 asistencia/      Asistencia, AsistenciaService
-reportes/        ReporteService (caracterización; demanda por profesional y policlínico; CSV)
+reportes/        ReporteService (caracterización; demanda por profesional, policlínico y
+                 especialidad; pacientes con historial; filtros combinables; CSV)
 portal/          portal público del paciente (solo vistas: usa los servicios de los módulos)
 ```
 
 Cada módulo sigue las capas **vistas → services → modelos → repositorios**. Los permisos
-por rol se validan en las vistas y también en los servicios (`roles.exigir_rol`).
+por rol se validan en las vistas y también en los servicios (`roles.exigir_rol`); el
+policlínico de la TENS, con `roles.exigir_policlinico` (`Policlinico.usuario_tens`).
 
 **Especialidad y policlínico son conceptos distintos**: la especialidad es el tipo de
 atención (Kinesiología); el policlínico es el lugar (6 policlínicos + Telemedicina). Un
@@ -151,12 +160,14 @@ profesional tiene una especialidad y atiende en uno o más policlínicos según 
 - **RN-03/RN-04/RN-05**: correo opcional; adulto responsable obligatorio para menores o
   dependientes (los avisos le llegan a él/ella); si falta la inscripción CESFAM se advierte,
   y al adjuntar el comprobante queda resuelto.
-- **RN-06**: lista de espera por orden de llegada; la TENS puede «subir» a un paciente un lugar.
-  Al agendarle una cita, su solicitud pasa a «Agendado».
-- **Avisos**: WhatsApp y correo no se integran. `NotificadorLog` guarda cada aviso (pantalla
-  *Avisos enviados*). El WhatsApp se marca «No se pudo enviar» si el celular no es un móvil
-  chileno válido (para demostrar «Reintentar aviso»). La respuesta del paciente se hace desde
-  el link `/c/<código>/` o la registra la TENS («Registrar respuesta»).
+- **RN-06**: cada lista de espera es de una **especialidad en un policlínico** (nunca de un
+  profesional), por orden de llegada; la TENS puede «subir» a un paciente un lugar dentro de
+  su lista. Al agendarle una cita de esa especialidad en ese policlínico, pasa a «Agendado».
+- **Avisos**: se envían por correo y por WhatsApp cuando es posible; basta con que llegue por
+  uno de los dos. En el MVP no se integran: `NotificadorLog` guarda cada aviso (pantalla
+  *Avisos enviados*) y marca el WhatsApp como no enviado si el celular no es un móvil chileno.
+  Si el paciente responde desde el link `/c/<código>/`, su respuesta queda registrada sola;
+  la TENS también puede registrarla o cambiarla («Registrar / Cambiar respuesta»).
 - **Bloquear y liberar horas**: lo pueden hacer TENS y Administración (como en el diseño); el
   horario semanal solo lo define la Administración. Un cupo con cita no se bloquea.
 
@@ -165,7 +176,7 @@ profesional tiene una especialidad y atiende en uno o más policlínicos según 
 | Módulo | Estado |
 |---|---|
 | Login, roles y `cargar_demo` | Completo |
-| Portal del paciente (reserva, lista de espera, aviso, confirmar/cambiar/cancelar) | Completo (WhatsApp y correo simulados) |
+| Portal del paciente (reserva, lista de espera, aviso, confirmar/cambiar/cancelar) | Completo (envío real de WhatsApp y correo fuera del MVP) |
 | Pacientes (registro, búsqueda, adulto responsable) | Completo |
 | Profesionales, especialidades y policlínicos | Completo |
 | Agendas y cupos (horario semanal, calendario bloquear/liberar) | Completo |
@@ -173,21 +184,25 @@ profesional tiene una especialidad y atiende en uno o más policlínicos según 
 | Asistencia | Completo |
 | Lista de espera | Completo |
 | Documentos (subida local + historial) | Completo |
-| Reportes (caracterización, demanda por profesional y policlínico, CSV) | Completo (variables de caracterización por validar, RF-14) |
+| Reportes (caracterización, demanda, pacientes con historial, filtros, CSV) | Completo |
 
 ## Flujo sugerido para la demo
 
-1. **Portada** → *Reservar hora* (paciente): Kinesiología → elegir día y hora → RUT nuevo
-   (menor de edad, pide adulto responsable) → confirmar → *Ver aviso de confirmación* →
-   abrir el link → *Sí, asistiré* / *Cambiar hora* / *Cancelar hora*.
-2. Reservar **Enfermería**: no hay horas → *Anotarme en lista de espera*.
-3. Entrar como `tens`: el inicio muestra los avisos del próximo día hábil (uno «No se pudo
-   enviar» → *Reintentar aviso*; *Registrar respuesta*; *simular el envío de los avisos*).
+1. **Portada** → *Reservar hora* (paciente): Kinesiología → policlínico (solo aparecen los que
+   la atienden) → elegir día y hora → RUT nuevo (menor de edad, pide adulto responsable) →
+   confirmar → *Ver aviso de confirmación* → abrir el link → *Sí, asistiré* / *Cambiar hora* /
+   *Cancelar hora*. *← Volver al inicio* regresa a la portada.
+2. Reservar **Enfermería** en el Policlínico Santa Rosa: no hay horas → *Anotarme en lista de espera*.
+3. Entrar con el usuario TENS que indica `cargar_demo` (p. ej. `san_lazaro`): el inicio muestra
+   los avisos del próximo día hábil de ese policlínico (uno «No se pudo enviar» → *Reintentar
+   aviso*; respuestas del paciente registradas solas; *Registrar / Cambiar respuesta*).
 4. *Citas*: buscar paciente, elegir especialidad/profesional, día en el calendario, hora;
    sobrecupo en una hora «sin respuesta»; intentar un segundo sobrecupo (rechazado); reagendar
    y cancelar desde «Citas del paciente».
-5. *Pacientes*, *Documentos* (falta CESFAM → adjuntar), *Lista de espera* (gestionar, subir,
-   agendar), *Profesionales* (bloquear y liberar de a poco), *Asistencia* (asistió / no asistió).
-6. Entrar como `administracion`: alerta de la profesional sin horas con lista de espera,
-   *Profesionales* (agregar, horario semanal, bloque que se cruza → error), *Reportes* + CSV.
-7. Entrar como `profesional`: sus citas y estadísticas.
+5. *Pacientes*, *Documentos* (falta CESFAM → adjuntar), *Lista de espera* (con `santa_rosa`:
+   Enfermería; gestionar, subir, agendar), *Profesionales* (bloquear y liberar de a poco),
+   *Asistencia* (asistió / no asistió).
+6. Entrar como `administracion`: *Profesionales* (agregar, horario semanal, bloque que se cruza
+   → error), *Reportes* (filtros combinados: período o rango de fechas, policlínico,
+   especialidad, profesional, estado, asistencia, canal, sobrecupo, sexo, edad, nacionalidad,
+   CESFAM, adulto responsable) + CSV, y *Reporte de pacientes* → *Ver historial* de un paciente.

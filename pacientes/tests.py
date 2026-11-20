@@ -62,7 +62,7 @@ class PacienteServiceTests(TestCase):
 
     def test_advertencia_cesfam_rn05(self):
         p = self.servicio.guardar(self.nuevo(), None, self.tens)
-        self.assertTrue(any("RN-05" in a for a in p.advertencias))
+        self.assertTrue(any("CESFAM" in a for a in p.advertencias))
 
     def test_solo_tens_registra(self):
         with self.assertRaises(PermissionDenied):
@@ -96,8 +96,8 @@ class PacienteVistasTests(TestCase):
         })
         self.assertFalse(Paciente.objects.exists())
 
-    def test_profesional_no_accede_a_pacientes(self):
-        self.client.force_login(crear_usuario("prof", roles.PROFESIONAL))
+    def test_usuario_sin_rol_no_accede_a_pacientes(self):
+        self.client.force_login(User.objects.create_user("sin_rol", password="x"))
         self.assertEqual(self.client.get(reverse("pacientes:lista")).status_code, 403)
 
 
@@ -119,7 +119,7 @@ class DocumentosTests(TestCase):
         carpeta = tempfile.mkdtemp()
         try:
             with override_settings(MEDIA_ROOT=carpeta):
-                self.assertTrue(any("RN-05" in a for a in self.p.advertencias))
+                self.assertTrue(any("CESFAM" in a for a in self.p.advertencias))
                 self.subir()
                 self.p.refresh_from_db()
                 self.assertTrue(self.p.inscrito_cesfam)

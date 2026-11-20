@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -12,24 +13,27 @@ def home(request):
     u = request.user
     if not u.is_authenticated:
         return render(request, "core/portada.html")
-    if r.tiene_rol(u, r.TENS):
+    if r.tiene_rol(u, r.TENS) and not (u.is_superuser or r.tiene_rol(u, r.ADMINISTRACION)):
         return inicio_tens(request)
     if r.tiene_rol(u, r.ADMINISTRACION):
         return inicio_admin(request)
-    return inicio_profesional(request)
+    raise PermissionDenied("Su usuario no tiene un rol asignado (Administración o TENS/TONS).")
 
 
 def inicio_tens(request):
     from citas.services import ConfirmacionService, resumen_tens
 
+    pol = r.policlinico_de(request.user)
     hoy = timezone.localdate()
     habil = proximo_dia_habil(hoy)
     dia = parse_date(request.GET.get("dia") or "") or habil
-    citas = [c for c in ConfirmacionService().citas_del_dia(dia) if c.estado != "cancelada"]
+    citas = ConfirmacionService().citas_del_dia(dia).exclude(estado="cancelada")
+    if pol:
+        citas = citas.filter(cupo__agenda__policlinico=pol)
     return render(request, "core/inicio_tens.html", {
         "hoy": hoy, "dia": dia, "dia_anterior": dia - timedelta(days=1), "dia_siguiente": dia + timedelta(days=1),
         "es_manana": dia == hoy + timedelta(days=1), "es_proximo_habil": dia == habil,
-        "resumen": resumen_tens(hoy), "citas": citas,
+        "resumen": resumen_tens(hoy, pol), "citas": list(citas), "policlinico": pol,
     })
 
 
@@ -44,14 +48,3 @@ def inicio_admin(request):
     from reportes.services import indicadores_admin
 
     return render(request, "core/inicio_admin.html", {"hoy": timezone.localdate(), "ind": indicadores_admin()})
-
-
-def inicio_profesional(request):
-    from citas.services import ConfirmacionService
-
-    hoy = timezone.localdate()
-    prof = getattr(request.user, "profesional", None)
-    citas = []
-    if prof:
-        citas = [c for c in ConfirmacionService().citas_del_dia(hoy) if c.cupo.agenda.profesional_id == prof.pk]
-    return render(request, "core/inicio_profesional.html", {"hoy": hoy, "profesional": prof, "citas": citas})

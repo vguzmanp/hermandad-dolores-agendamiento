@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% load hd %}
+{% block titulo %}{{ p.nombre }} · historial{% endblock %}
+{% block contenido %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+  <div>
+    <a class="small" href="{% if volver %}{{ volver }}{% else %}{% url 'reportes:inicio' %}?tab=pacientes{% endif %}">← Volver al reporte de pacientes</a>
+    <h1 class="titulo-pagina mt-1">{{ p.nombre }}</h1>
+    <p class="subtitulo">RUT {{ p.rut|rut }} · {{ p.edad }} años · {{ p.get_sexo_display }} · {{ p.nacionalidad }}
+      {% if datos.primera_cita %} · paciente desde {{ datos.primera_cita|date:"d/m/Y" }}{% endif %}</p>
+  </div>
+  <a class="btn btn-suave" href="{% url 'reportes:csv_paciente' p.pk %}?{{ qs }}">Descargar historial (CSV)</a>
+</div>
+
+{% for a in p.advertencias %}<div class="aviso aviso-naranjo small mb-2">{{ a }}</div>{% endfor %}
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-5"><div class="tarjeta tarjeta-cuerpo h-100">
+    <h2 class="h6 mb-3">Ficha del paciente</h2>
+    <dl class="row mb-0 small">
+      <dt class="col-5">Fecha de nacimiento</dt><dd class="col-7">{{ p.fecha_nacimiento|date:"d/m/Y" }}</dd>
+      <dt class="col-5">Celular</dt><dd class="col-7">{{ p.celular }}</dd>
+      <dt class="col-5">Correo</dt><dd class="col-7">{{ p.correo|default:"—" }}</dd>
+      <dt class="col-5">Dirección</dt><dd class="col-7">{{ p.direccion }}</dd>
+      <dt class="col-5">CESFAM</dt><dd class="col-7">{% if p.inscrito_cesfam %}Inscrito{% if p.cesfam %} · {{ p.cesfam }}{% endif %}{% else %}<span class="pill pill-naranjo">Sin inscripción</span>{% endif %}</dd>
+      {% if p.adulto_responsable %}
+      <dt class="col-5">Adulto responsable</dt><dd class="col-7">{{ p.adulto_responsable.nombre }} ({{ p.adulto_responsable.parentesco }}) · {{ p.adulto_responsable.celular }}</dd>
+      {% endif %}
+      <dt class="col-5">Registrado</dt><dd class="col-7">{{ p.fecha_registro|date:"d/m/Y" }}</dd>
+      <dt class="col-5">Avisos enviados</dt><dd class="col-7">{{ datos.n_avisos }}</dd>
+      <dt class="col-5">Documentos</dt><dd class="col-7">{% for d in datos.documentos %}{{ d.get_tipo_display }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</dd>
+    </dl>
+  </div></div>
+  <div class="col-lg-7">
+    <div class="row g-3">
+      <div class="col-4"><div class="kpi"><div class="valor">{{ datos.kpi.total }}</div><div class="etiqueta">Citas{% if datos.kpi.total != datos.total_historico %} (de {{ datos.total_historico }} en total){% endif %}</div></div></div>
+      <div class="col-4"><div class="kpi"><div class="valor">{{ datos.kpi.asistidas }}</div><div class="etiqueta">Asistidas</div></div></div>
+      <div class="col-4"><div class="kpi"><div class="valor">{{ datos.kpi.inasistencias }}</div><div class="etiqueta">Inasistencias ({{ datos.kpi.inasistencia|floatformat:1 }} %)</div></div></div>
+      <div class="col-4"><div class="kpi"><div class="valor">{{ datos.kpi.canceladas }}</div><div class="etiqueta">Canceladas</div></div></div>
+      <div class="col-4"><div class="kpi"><div class="valor">{{ datos.kpi.sobrecupos }}</div><div class="etiqueta">Sobrecupos</div></div></div>
+      <div class="col-4"><div class="kpi"><div class="valor">{{ datos.kpi.proximas }}</div><div class="etiqueta">Próximas citas</div></div></div>
+    </div>
+    {% if datos.especialidades %}
+    <div class="tarjeta tarjeta-cuerpo mt-3">
+      <h2 class="h6 mb-3">Citas por especialidad</h2>
+      {% for n in datos.especialidades %}<div class="barra-h barra-h-ancha"><span class="text-gris">{{ n.nombre }}</span><div class="track"><div class="fill" style="width: {{ n.ancho }}%"></div><span class="num">{{ n.n }}</span></div></div>{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<h2 class="h5">Historial de citas</h2>
+{% include "reportes/_filtros.html" with tab="" solo_cita=True %}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <span class="pill pill-azul">{{ f.etiqueta }}</span>
+  {% for a in f.activos %}<span class="pill pill-gris">{{ a }}</span>{% endfor %}
+</div>
+<div class="tabla-hd mb-4"><div class="table-responsive"><table class="table">
+  <thead><tr><th>Fecha</th><th>Hora</th><th>Especialidad · profesional</th><th>Policlínico</th><th>Pidió la hora</th><th>Aviso</th><th>Estado</th><th>Asistencia</th><th></th></tr></thead>
+  <tbody>
+  {% for c in datos.citas %}
+  <tr>
+    <td class="text-nowrap">{{ c.cupo.fecha|date:"d/m/Y" }}</td>
+    <td class="fw-bold">{{ c.cupo.hora_inicio|time:"H:i" }}</td>
+    <td>{{ c.cupo.agenda.profesional.especialidad }}<div class="celda-sec">{{ c.cupo.agenda.profesional.nombre }}{% if c.total_sesiones > 1 %} · sesión {{ c.numero_sesion }} de {{ c.total_sesiones }}{% endif %}</div></td>
+    <td>{{ c.cupo.agenda.policlinico }}</td>
+    <td class="small">{{ c.get_canal_display }}<div class="celda-sec">{% if c.creada_por %}{{ c.creada_por.username }}{% else %}el paciente (web){% endif %}</div></td>
+    <td>{% include "includes/pill_aviso.html" %}</td>
+    <td>{% pill_cita c %}{% if c.respuesta_origen %}<div class="celda-sec">{{ c.get_respuesta_origen_display }}</div>{% endif %}{% if c.estado == "cancelada" and c.motivo_cancelacion %}<div class="celda-sec">{{ c.motivo_cancelacion }}</div>{% endif %}</td>
+    <td>{% if c.asistencia_registrada %}{% if c.asistencia_registrada.asistio %}<span class="pill pill-verde">Asistió</span>{% else %}<span class="pill pill-rojo">No asistió</span>{% endif %}{% elif c.estado == "cancelada" %}<span class="text-gris">—</span>{% elif c.es_pasada %}<span class="pill pill-gris">Sin registro</span>{% else %}<span class="text-gris small">Próxima</span>{% endif %}</td>
+    <td class="text-end"><a class="btn btn-suave btn-xs" href="{% url 'citas:detalle' c.pk %}">Ver cita</a></td>
+  </tr>
+  {% empty %}<tr><td colspan="9" class="text-center text-gris py-4">Sin citas con estos filtros.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div></div>
+
+<h2 class="h5">Lista de espera</h2>
+<div class="tabla-hd"><div class="table-responsive"><table class="table">
+  <thead><tr><th>Desde</th><th>Especialidad</th><th>Policlínico</th><th>Estado</th><th>Resultado del contacto</th><th>Nota</th></tr></thead>
+  <tbody>
+  {% for s in datos.espera %}
+  <tr><td>{{ s.creada_en|date:"d/m/Y" }}</td><td>{{ s.especialidad }}</td><td>{{ s.policlinico }}</td><td>{{ s.get_estado_display }}{% if s.cita %}<div class="celda-sec">Cita {{ s.cita.cupo.fecha|date:"d/m/Y" }}</div>{% endif %}</td><td>{{ s.get_resultado_contacto_display }}</td><td class="small">{{ s.nota|default:"—" }}</td></tr>
+  {% empty %}<tr><td colspan="6" class="text-center text-gris py-4">El paciente no ha estado en la lista de espera.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div></div>
+{% endblock %}

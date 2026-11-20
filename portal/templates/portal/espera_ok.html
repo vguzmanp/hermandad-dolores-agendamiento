@@ -7,6 +7,9 @@
     <div><h1 class="titulo-pagina mb-0">Quedaste en la lista de espera</h1>
       <div class="text-gris">Te contactaremos cuando se libere una hora{% if especialidad %} en {{ especialidad }}{% endif %}.</div></div>
   </div>
-  <a class="btn btn-primary btn-lg-hd" href="{% url 'portal:inicio' %}">Reservar otra hora</a>
+  <div class="d-flex gap-2">
+    <a class="btn btn-primary btn-lg-hd" href="{% url 'portal:inicio' %}">Reservar otra hora</a>
+    <a class="btn btn-gris btn-lg-hd" href="/">Volver al inicio</a>
+  </div>
 </div>
 {% endblock %}

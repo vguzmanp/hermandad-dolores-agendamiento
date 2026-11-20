@@ -3,11 +3,12 @@
 {% block url_marca %}/{% endblock %}
 {% block subtitulo_cabecera %}Sistema de gestión{% endblock %}
 {% block derecha_cabecera %}{% endblock %}
+{% block volver_inicio %}{% endblock %}
 {% block cuerpo %}
 <div class="row justify-content-center py-4">
   <div class="col-md-6 col-lg-5">
-    <h1 class="titulo-pagina">{% if request.GET.rol == "tens" %}Entrar como TENS/TONS{% elif request.GET.rol == "admin" %}Entrar como Administración{% elif request.GET.rol == "profesional" %}Entrar como profesional{% else %}Ingresar{% endif %}</h1>
-    <p class="subtitulo">Usa tu usuario y contraseña de la Hermandad.</p>
+    <h1 class="titulo-pagina">{% if request.GET.rol == "tens" %}Entrar como TENS/TONS{% elif request.GET.rol == "admin" %}Entrar como Administración{% else %}Ingresar{% endif %}</h1>
+    <p class="subtitulo">{% if request.GET.rol == "tens" %}El usuario es el nombre de tu policlínico (por ejemplo, <code>san_lazaro</code>).{% else %}Usa tu usuario y contraseña de la Hermandad.{% endif %}</p>
     <div class="tarjeta tarjeta-cuerpo">
       {% if form.errors %}<div class="aviso aviso-rojo mb-3">Usuario o contraseña incorrectos.</div>{% endif %}
       <form method="post" action="{% url 'login' %}">
@@ -25,7 +26,7 @@
       </form>
     </div>
     {% if debug_demo %}
-    <p class="small text-gris mt-3">Demo · contraseña <code>demo1234</code>: <code>tens</code>, <code>administracion</code>, <code>profesional</code>, <code>admin</code>.</p>
+    <p class="small text-gris mt-3">Demo · contraseña <code>demo1234</code>: <code>administracion</code>, <code>admin</code> y un usuario por policlínico: <code>san_lazaro</code>, <code>santa_rosa</code>, <code>los_olivos</code>, <code>el_carmen</code>, <code>buen_samaritano</code>, <code>santa_clara</code>, <code>telemedicina</code>.</p>
     {% endif %}
     <a class="btn btn-gris mt-2" href="/">Volver</a>
   </div>

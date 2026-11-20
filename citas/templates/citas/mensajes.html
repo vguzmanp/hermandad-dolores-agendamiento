@@ -2,7 +2,7 @@
 {% block titulo %}Avisos enviados{% endblock %}
 {% block contenido %}
 <h1 class="titulo-pagina">Avisos enviados</h1>
-<p class="subtitulo">WhatsApp y correo no están integrados: <code>NotificadorLog</code> (implementación de <code>INotificador</code>) registra aquí cada aviso que se enviaría, con su link para responder.</p>
+<p class="subtitulo">Cada aviso enviado al paciente por correo y WhatsApp, con su link para confirmar, cambiar o cancelar la hora.</p>
 <div class="segmento mb-3">
   <a href="?" class="{% if not canal %}activo{% endif %}">Todos</a>
   <a href="?canal=whatsapp" class="{% if canal == 'whatsapp' %}activo{% endif %}">WhatsApp</a>

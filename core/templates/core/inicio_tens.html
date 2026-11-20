@@ -3,7 +3,7 @@
 {% block titulo %}Inicio{% endblock %}
 {% block contenido %}
 <h1 class="titulo-pagina">Inicio</h1>
-<p class="subtitulo">{{ hoy|fecha_larga_anio }}</p>
+<p class="subtitulo">{% if policlinico %}{{ policlinico.nombre }} · {% endif %}{{ hoy|fecha_larga_anio }}</p>
 
 <div class="row g-3 mb-4">
   <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ resumen.citas_hoy }}</div><div class="etiqueta">Citas de hoy</div></div></div>
@@ -25,7 +25,7 @@
     <a href="?dia={{ dia_anterior|date:'Y-m-d' }}">‹ día anterior</a> · <a href="?dia={{ dia_siguiente|date:'Y-m-d' }}">día siguiente ›</a>
   </span>
 </div>
-<p class="small text-gris">El sistema envía el recordatorio y la solicitud de confirmación antes de la cita (diasAviso, 2 días por defecto). Si el aviso falla o el paciente no responde, llámalo y registra su respuesta aquí.</p>
+<p class="small text-gris">El sistema envía al paciente el recordatorio y la solicitud de confirmación 2 días antes de la cita. Cuando el paciente responde el aviso, su respuesta queda registrada automáticamente. Si el aviso falla o no responde, llámalo y registra o cambia su respuesta aquí.</p>
 
 <div class="tabla-hd">
   <div class="table-responsive">
@@ -36,19 +36,18 @@
     <tr>
       <td class="fw-bold">{{ c.cupo.hora_inicio|time:"H:i" }}</td>
       <td><div class="celda-principal"><a class="text-reset text-decoration-none" href="{% url 'citas:agendar' %}?paciente={{ c.paciente.pk }}">{{ c.paciente.nombre }}</a></div><div class="celda-sec">{{ c.paciente.celular }}</div></td>
-      <td>{{ c.cupo.agenda.profesional.nombre }}<div class="celda-sec">{{ c.cupo.agenda.profesional.especialidad }} · {{ c.cupo.agenda.policlinico }}</div></td>
+      <td>{{ c.cupo.agenda.profesional.nombre }}<div class="celda-sec">{{ c.cupo.agenda.profesional.especialidad }}{% if not policlinico %} · {{ c.cupo.agenda.policlinico }}{% endif %}</div></td>
       <td>{% include "includes/pill_aviso.html" %}</td>
-      <td>{% pill_cita c %}</td>
+      <td>{% pill_cita c %}{% if c.respuesta_origen == "paciente" %}<div class="celda-sec">Respondió el paciente</div>{% elif c.respuesta_origen == "tens" %}<div class="celda-sec">Registrada por TENS/TONS</div>{% endif %}</td>
       <td class="text-nowrap">
         {% if c.estado_aviso == "fallido" %}
         <form method="post" action="{% url 'citas:accion' c.pk 'aviso' %}" class="d-inline">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-suave-rojo btn-xs">Reintentar aviso</button></form>
         {% elif c.estado_aviso == "por_enviar" and c.estado == "agendada" %}
         <form method="post" action="{% url 'citas:accion' c.pk 'aviso' %}" class="d-inline">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="btn btn-gris btn-xs">Enviar aviso</button></form>
         {% endif %}
-        {% if c.estado == "confirmada" %}<span class="text-gris">—</span>{% else %}
         <button class="btn btn-suave btn-xs" data-bs-toggle="modal" data-bs-target="#modalRespuesta"
-                data-url="{% url 'citas:accion' c.pk 'respuesta' %}" data-detalle="{{ c.paciente.nombre }} · {{ c.cupo.fecha|fecha_corta }} · {{ c.cupo.hora_inicio|time:'H:i' }}">Registrar respuesta</button>
-        {% endif %}
+                data-url="{% url 'citas:accion' c.pk 'respuesta' %}" data-estado="{{ c.estado }}"
+                data-detalle="{{ c.paciente.nombre }} · {{ c.cupo.fecha|fecha_corta }} · {{ c.cupo.hora_inicio|time:'H:i' }}">{% if c.estado == "agendada" %}Registrar respuesta{% else %}Cambiar respuesta{% endif %}</button>
       </td>
     </tr>
     {% empty %}
@@ -59,7 +58,7 @@
   </div>
 </div>
 <form method="post" action="{% url 'citas:enviar_todos' %}" class="mt-3">{% csrf_token %}
-  <span class="small text-gris">Demostración:</span> <button class="btn btn-link btn-sm p-0 align-baseline">simular el envío de los avisos pendientes</button>
+  <button class="btn btn-gris">Enviar ahora los avisos pendientes</button>
 </form>
 {% include "includes/modal_respuesta.html" %}
 {% endblock %}

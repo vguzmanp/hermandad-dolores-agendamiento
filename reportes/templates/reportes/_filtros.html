@@ -1,0 +1,51 @@
+{# Panel de filtros de los reportes. Requiere: form, (opcional) tab, accion #}
+<form method="get" action="{{ accion|default:'' }}" class="tarjeta tarjeta-cuerpo mb-4" id="filtrosReporte">
+  {% if tab %}<input type="hidden" name="tab" value="{{ tab }}">{% endif %}
+  {% if volver %}<input type="hidden" name="volver" value="{{ volver }}">{% endif %}
+  <div class="row g-3">
+    <div class="col-12"><div class="small-label">Período y lugar</div></div>
+    <div class="col-sm-6 col-lg-3"><label class="form-label">{{ form.periodo.label }}</label>{{ form.periodo }}</div>
+    <div class="col-sm-3 col-lg-2 rango-fechas"><label class="form-label">Desde</label>{{ form.desde }}{% for e in form.desde.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</div>
+    <div class="col-sm-3 col-lg-2 rango-fechas"><label class="form-label">Hasta</label>{{ form.hasta }}{% for e in form.hasta.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</div>
+    <div class="col-sm-6 col-lg-3"><label class="form-label">Policlínico</label>{{ form.policlinico }}</div>
+    <div class="col-sm-6 col-lg-3"><label class="form-label">Especialidad</label>{{ form.especialidad }}</div>
+    <div class="col-sm-6 col-lg-3"><label class="form-label">Profesional</label>{{ form.profesional }}</div>
+  </div>
+  <details class="mt-3" {% if abrir_filtros or f.activos %}open{% endif %}>
+    <summary class="fw-semibold text-primary" style="cursor:pointer">Más filtros{% if not solo_cita %} (cita y paciente){% else %} de la cita{% endif %}</summary>
+    <div class="row g-3 mt-1">
+      <div class="col-12"><div class="small-label">La cita</div></div>
+      <div class="col-sm-6 col-lg-3"><label class="form-label">{{ form.estado.label }}</label>{{ form.estado }}</div>
+      <div class="col-sm-6 col-lg-3"><label class="form-label">{{ form.asistencia.label }}</label>{{ form.asistencia }}</div>
+      <div class="col-sm-6 col-lg-3"><label class="form-label">{{ form.canal.label }}</label>{{ form.canal }}</div>
+      <div class="col-sm-6 col-lg-3"><label class="form-label">{{ form.sobrecupo.label }}</label>{{ form.sobrecupo }}</div>
+      {% if not solo_cita %}
+      <div class="col-12"><div class="small-label">El paciente</div></div>
+      <div class="col-sm-6 col-lg-2"><label class="form-label">{{ form.sexo.label }}</label>{{ form.sexo }}</div>
+      <div class="col-sm-6 col-lg-2"><label class="form-label">{{ form.edad.label }}</label>{{ form.edad }}</div>
+      <div class="col-sm-6 col-lg-3"><label class="form-label">{{ form.nacionalidad.label }}</label>{{ form.nacionalidad }}</div>
+      <div class="col-sm-6 col-lg-2"><label class="form-label">{{ form.cesfam.label }}</label>{{ form.cesfam }}</div>
+      <div class="col-sm-6 col-lg-3"><label class="form-label">{{ form.responsable.label }}</label>{{ form.responsable }}</div>
+      {% endif %}
+      {% if form.q %}
+      <div class="col-12"><div class="small-label">Listado de pacientes</div></div>
+      <div class="col-sm-6 col-lg-3"><label class="form-label">{{ form.q.label }}</label>{{ form.q }}</div>
+      <div class="col-sm-6 col-lg-2"><label class="form-label">{{ form.en_espera.label }}</label>{{ form.en_espera }}</div>
+      <div class="col-sm-6 col-lg-2"><label class="form-label">{{ form.con_inasistencias.label }}</label>{{ form.con_inasistencias }}</div>
+      <div class="col-sm-6 col-lg-2"><label class="form-label">{{ form.orden.label }}</label>{{ form.orden }}</div>
+      <div class="col-sm-12 col-lg-3 d-flex align-items-end"><div class="form-check">{{ form.sin_citas }}<label class="form-check-label" for="{{ form.sin_citas.id_for_label }}">{{ form.sin_citas.label }}</label></div></div>
+      {% endif %}
+    </div>
+  </details>
+  <div class="d-flex flex-wrap gap-2 mt-3">
+    <button class="btn btn-primary">Aplicar filtros</button>
+    <a class="btn btn-gris" href="?{% if tab %}tab={{ tab }}{% endif %}{% if volver %}&volver={{ volver|urlencode }}{% endif %}">Limpiar filtros</a>
+  </div>
+</form>
+<script>
+(function () {
+  const sel = document.querySelector("#filtrosReporte select[name=periodo]");
+  const act = () => document.querySelectorAll("#filtrosReporte .rango-fechas").forEach(el => el.classList.toggle("d-none", sel.value !== "rango"));
+  sel.addEventListener("change", act); act();
+})();
+</script>

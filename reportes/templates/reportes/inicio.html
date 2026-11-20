@@ -1,84 +1,165 @@
 {% extends "base.html" %}
+{% load hd %}
 {% block titulo %}Reportes{% endblock %}
 {% block contenido %}
-<h1 class="titulo-pagina">{% if solo_propio %}Mis estadísticas{% else %}Reportes de gestión{% endif %}</h1>
-<p class="subtitulo">Información de pacientes atendidos y estadísticas de demanda y atención, calculadas desde el sistema.{% if solo_propio and f.profesional %} · {{ f.profesional.nombre }}{% endif %}</p>
-
-<form method="get" class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
-  <input type="hidden" name="tab" value="{{ tab }}">
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+  <div>
+    <h1 class="titulo-pagina">Reportes de gestión</h1>
+    <p class="subtitulo">Caracterización de pacientes, demanda y atención, y el historial de cada paciente. Todos los filtros se pueden combinar.</p>
+  </div>
   <div class="segmento">
-    {% if not solo_propio %}<a href="?tab=caracterizacion&periodo={{ periodo }}{% if f.policlinico %}&policlinico={{ f.policlinico.pk }}{% endif %}{% if f.profesional %}&profesional={{ f.profesional.pk }}{% endif %}" class="{% if tab == 'caracterizacion' %}activo{% endif %}">Caracterización</a>{% endif %}
-    <a href="?tab=demanda&periodo={{ periodo }}{% if f.policlinico %}&policlinico={{ f.policlinico.pk }}{% endif %}{% if f.profesional and not solo_propio %}&profesional={{ f.profesional.pk }}{% endif %}" class="{% if tab == 'demanda' %}activo{% endif %}">Demanda y atención</a>
+    {% for clave, etiqueta in tabs %}<a href="?tab={{ clave }}{% if qs %}&{{ qs }}{% endif %}" class="{% if tab == clave %}activo{% endif %}">{{ etiqueta }}</a>{% endfor %}
   </div>
-  <div class="d-flex flex-wrap gap-3">
-    <div><label class="form-label">Período</label><select class="form-select" name="periodo" data-autosubmit style="min-width: 180px">
-      {% for k, t in periodos %}<option value="{{ k }}" {% if k == periodo %}selected{% endif %}>{{ t }}{% if k == periodo %} ({{ f.etiqueta }}){% endif %}</option>{% endfor %}</select></div>
-    <div><label class="form-label">Policlínico</label><select class="form-select" name="policlinico" data-autosubmit style="min-width: 180px">
-      <option value="">Todos</option>{% for p in policlinicos %}<option value="{{ p.pk }}" {% if p == f.policlinico %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}</select></div>
-    {% if not solo_propio %}
-    <div><label class="form-label">Profesional</label><select class="form-select" name="profesional" data-autosubmit style="min-width: 180px">
-      <option value="">Todos</option>{% for p in profesionales %}<option value="{{ p.pk }}" {% if p == f.profesional %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}</select></div>
-    {% endif %}
-  </div>
-</form>
+</div>
+
+{% include "reportes/_filtros.html" %}
+
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <span class="pill pill-azul">{{ f.etiqueta }}</span>
+  {% for a in f.activos %}<span class="pill pill-gris">{{ a }}</span>{% endfor %}
+</div>
 
 {% if tab == "caracterizacion" %}
-<div class="aviso aviso-naranjo mb-4"><strong>Variables por validar con el mandante</strong>
-  <div class="small">Se muestra el género registrado en la ficha del paciente; las variables definitivas de la caracterización siguen pendientes (RF-14).</div></div>
 <div class="row g-3 mb-4">
-  <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ datos.atendidos }}</div><div class="etiqueta">Pacientes atendidos</div></div></div>
-  <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ datos.adultos }} / {{ datos.ninos }}</div><div class="etiqueta">Adultos / menores de 18</div></div></div>
-  <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ datos.inasistencia|floatformat:1 }} %</div><div class="etiqueta">Inasistencia</div></div></div>
-  <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ datos.mujeres }} % / {{ datos.hombres }} %</div><div class="etiqueta">Mujeres / hombres</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.pacientes }}</div><div class="etiqueta">Pacientes con citas</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.atendidos }}</div><div class="etiqueta">Atendidos (asistieron)</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.adultos }} / {{ datos.ninos }}</div><div class="etiqueta">Adultos / menores de 18</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.mujeres }} % / {{ datos.hombres }} %</div><div class="etiqueta">Mujeres / hombres</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.cesfam }} %</div><div class="etiqueta">Inscritos en CESFAM</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.inasistencia|floatformat:1 }} %</div><div class="etiqueta">Inasistencia</div></div></div>
 </div>
 <div class="row g-3 mb-3">
-  <div class="col-lg-6"><div class="tarjeta tarjeta-cuerpo h-100">
+  <div class="col-lg-4"><div class="tarjeta tarjeta-cuerpo h-100">
     <h2 class="h6 mb-3">Edad</h2>
-    {% for e in datos.edades %}<div class="barra-h"><span class="text-gris">{{ e.tramo }}</span><div class="track"><div class="fill" style="width: {{ e.ancho }}%"></div><span class="num">{{ e.n }}</span></div></div>{% endfor %}
+    {% for e in datos.edades %}<div class="barra-h"><span class="text-gris">{{ e.nombre }}</span><div class="track"><div class="fill" style="width: {{ e.ancho }}%"></div><span class="num">{{ e.n }}</span></div></div>{% endfor %}
   </div></div>
-  <div class="col-lg-6"><div class="tarjeta tarjeta-cuerpo h-100">
-    <h2 class="h6 mb-3">Nacionalidad</h2>
+  <div class="col-lg-4"><div class="tarjeta tarjeta-cuerpo h-100">
+    <h2 class="h6 mb-3">Sexo</h2>
+    {% for e in datos.sexo %}<div class="barra-h"><span class="text-gris">{{ e.nombre }}</span><div class="track"><div class="fill" style="width: {{ e.ancho }}%"></div><span class="num">{{ e.n }}</span></div></div>
+    {% empty %}<p class="text-gris small">Sin pacientes con estos filtros.</p>{% endfor %}
+    <h2 class="h6 mt-4 mb-3">Nacionalidad</h2>
     {% for n in datos.nacionalidades %}<div class="barra-h"><span class="text-gris">{{ n.nombre }}</span><div class="track"><div class="fill" style="width: {{ n.ancho }}%"></div><span class="num">{{ n.n }}</span></div></div>
-    {% empty %}<p class="text-gris small">Sin atenciones registradas en el período.</p>{% endfor %}
+    {% empty %}<p class="text-gris small">Sin pacientes con estos filtros.</p>{% endfor %}
+  </div></div>
+  <div class="col-lg-4"><div class="tarjeta tarjeta-cuerpo h-100">
+    <h2 class="h6 mb-3">Pacientes por especialidad</h2>
+    {% for n in datos.especialidades %}<div class="barra-h barra-h-ancha"><span class="text-gris">{{ n.nombre }}</span><div class="track"><div class="fill" style="width: {{ n.ancho }}%"></div><span class="num">{{ n.n }}</span></div></div>
+    {% empty %}<p class="text-gris small">Sin pacientes con estos filtros.</p>{% endfor %}
+    <p class="small text-gris mt-3 mb-0">{{ datos.con_responsable }} paciente{{ datos.con_responsable|pluralize }} con adulto responsable.</p>
   </div></div>
 </div>
 <div class="tarjeta tarjeta-cuerpo">
   <h2 class="h6">Inasistencia por mes</h2>
+  {% if datos.meses %}
   <div class="barras-v">
     {% for m in datos.meses %}
-    <div class="col"><span class="num">{{ m.pct }} %</span><div class="fill" style="height: {% widthratio m.pct datos.max_mes 100 %}%"></div><span class="lbl">{{ m.mes }}</span></div>
+    <div class="col" title="{{ m.n }} cita{{ m.n|pluralize }} con asistencia registrada"><span class="num">{{ m.pct }} %</span><div class="fill" style="height: {% widthratio m.pct datos.max_mes 100 %}%"></div><span class="lbl">{{ m.mes }}</span></div>
     {% endfor %}
   </div>
+  {% else %}<p class="text-gris small mb-0">Sin asistencia registrada en el período.</p>{% endif %}
 </div>
-{% else %}
+
+{% elif tab == "demanda" %}
 <div class="row g-3 mb-4">
-  <div class="col-md-4"><div class="kpi"><div class="valor">{{ datos.pedidas }}</div><div class="etiqueta">Horas pedidas</div></div></div>
-  <div class="col-md-4"><div class="kpi"><div class="valor">{{ datos.atenciones }}</div><div class="etiqueta">Atenciones</div></div></div>
-  <div class="col-md-4"><div class="kpi"><div class="valor">{{ datos.inasistencia|floatformat:1 }} %</div><div class="etiqueta">Inasistencia</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.pedidas }}</div><div class="etiqueta">Horas pedidas</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.pacientes }}</div><div class="etiqueta">Pacientes</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.atenciones }}</div><div class="etiqueta">Atenciones</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.inasistencia|floatformat:1 }} %</div><div class="etiqueta">Inasistencia</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.canceladas }}</div><div class="etiqueta">Canceladas</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.sobrecupos }}</div><div class="etiqueta">Sobrecupos</div></div></div>
+</div>
+<div class="row g-3 mb-4">
+  <div class="col-lg-6"><div class="tarjeta tarjeta-cuerpo h-100">
+    <h2 class="h6 mb-3">Estado de las citas</h2>
+    {% for n in datos.por_estado %}<div class="barra-h barra-h-ancha"><span class="text-gris">{{ n.nombre }}</span><div class="track"><div class="fill" style="width: {{ n.ancho }}%"></div><span class="num">{{ n.n }}</span></div></div>{% endfor %}
+  </div></div>
+  <div class="col-lg-6"><div class="tarjeta tarjeta-cuerpo h-100">
+    <h2 class="h6 mb-3">¿Cómo pidieron la hora?</h2>
+    {% for n in datos.por_canal %}<div class="barra-h barra-h-ancha"><span class="text-gris">{{ n.nombre }}</span><div class="track"><div class="fill" style="width: {{ n.ancho }}%"></div><span class="num">{{ n.n }}</span></div></div>
+    {% empty %}<p class="text-gris small">Sin citas con estos filtros.</p>{% endfor %}
+  </div></div>
 </div>
 <h2 class="h6">Por profesional</h2>
 <div class="tabla-hd mb-4"><div class="table-responsive"><table class="table">
-  <thead><tr><th>Profesional</th><th>Especialidad</th><th>Policlínico(s)</th><th>Horas pedidas</th><th>Atenciones</th><th>Inasistencia</th></tr></thead>
+  <thead><tr><th>Profesional</th><th>Especialidad</th><th>Policlínico(s)</th><th>Horas pedidas</th><th>Pacientes</th><th>Atenciones</th><th>Inasistencia</th><th>Canceladas</th><th>Sobrecupos</th></tr></thead>
   <tbody>
   {% for x in datos.por_profesional %}
-  <tr><td class="celda-principal">{{ x.nombre }}</td><td>{{ x.detalle }}</td><td class="small">{{ x.policlinicos }}</td><td>{{ x.pedidas }}</td><td>{{ x.atenciones }}</td><td>{{ x.inasistencia }} %</td></tr>
-  {% empty %}<tr><td colspan="6" class="text-center text-gris py-4">Sin datos en el período.</td></tr>
+  <tr><td class="celda-principal">{{ x.nombre }}</td><td>{{ x.detalle }}</td><td class="small">{{ x.policlinicos }}</td><td>{{ x.pedidas }}</td><td>{{ x.pacientes }}</td><td>{{ x.atenciones }}</td><td>{{ x.inasistencia }} %</td><td>{{ x.canceladas }}</td><td>{{ x.sobrecupos }}</td></tr>
+  {% empty %}<tr><td colspan="9" class="text-center text-gris py-4">Sin datos con estos filtros.</td></tr>
   {% endfor %}
   </tbody>
 </table></div></div>
-<h2 class="h6">Por policlínico</h2>
-<div class="tabla-hd"><div class="table-responsive"><table class="table">
-  <thead><tr><th>Policlínico</th><th>Horas pedidas</th><th>Atenciones</th><th>Inasistencia</th></tr></thead>
-  <tbody>
-  {% for x in datos.por_policlinico %}
-  <tr><td class="celda-principal">{{ x.nombre }}</td><td>{{ x.pedidas }}</td><td>{{ x.atenciones }}</td><td>{{ x.inasistencia }} %</td></tr>
-  {% empty %}<tr><td colspan="4" class="text-center text-gris py-4">Sin datos en el período.</td></tr>
-  {% endfor %}
-  </tbody>
-</table></div></div>
-<div class="d-flex justify-content-between align-items-center mt-2">
-  <span class="small text-gris">Los datos salen del sistema, sin pasarlos a planillas. «Horas pedidas» incluye las citas canceladas.</span>
-  <a class="btn btn-suave" href="{% url 'reportes:csv' %}?{{ qs }}">Descargar tabla (CSV)</a>
+<div class="row g-4">
+  <div class="col-xl-6">
+    <h2 class="h6">Por policlínico</h2>
+    <div class="tabla-hd"><div class="table-responsive"><table class="table">
+      <thead><tr><th>Policlínico</th><th>Horas pedidas</th><th>Pacientes</th><th>Atenciones</th><th>Inasistencia</th><th>Canceladas</th></tr></thead>
+      <tbody>
+      {% for x in datos.por_policlinico %}
+      <tr><td class="celda-principal">{{ x.nombre }}</td><td>{{ x.pedidas }}</td><td>{{ x.pacientes }}</td><td>{{ x.atenciones }}</td><td>{{ x.inasistencia }} %</td><td>{{ x.canceladas }}</td></tr>
+      {% empty %}<tr><td colspan="6" class="text-center text-gris py-4">Sin datos con estos filtros.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div></div>
+  </div>
+  <div class="col-xl-6">
+    <h2 class="h6">Por especialidad</h2>
+    <div class="tabla-hd"><div class="table-responsive"><table class="table">
+      <thead><tr><th>Especialidad</th><th>Horas pedidas</th><th>Pacientes</th><th>Atenciones</th><th>Inasistencia</th><th>Canceladas</th></tr></thead>
+      <tbody>
+      {% for x in datos.por_especialidad %}
+      <tr><td class="celda-principal">{{ x.nombre }}</td><td>{{ x.pedidas }}</td><td>{{ x.pacientes }}</td><td>{{ x.atenciones }}</td><td>{{ x.inasistencia }} %</td><td>{{ x.canceladas }}</td></tr>
+      {% empty %}<tr><td colspan="6" class="text-center text-gris py-4">Sin datos con estos filtros.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div></div>
+  </div>
 </div>
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+  <span class="small text-gris">«Horas pedidas» incluye las citas canceladas. La inasistencia se calcula sobre las citas con asistencia registrada.</span>
+  <a class="btn btn-suave" href="{% url 'reportes:csv' %}?{{ qs }}">Descargar (CSV)</a>
+</div>
+
+{% else %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ resumen.pacientes }}</div><div class="etiqueta">Pacientes</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ resumen.citas }}</div><div class="etiqueta">Citas</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ resumen.asistidas }}</div><div class="etiqueta">Asistidas</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ resumen.inasistencias }}</div><div class="etiqueta">Inasistencias ({{ resumen.inasistencia|floatformat:1 }} %)</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ resumen.canceladas }}</div><div class="etiqueta">Canceladas</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ resumen.en_espera }}</div><div class="etiqueta">En lista de espera</div></div></div>
+</div>
+<div class="tabla-hd"><div class="table-responsive"><table class="table">
+  <thead><tr><th>Paciente</th><th>Edad · sexo</th><th>Nacionalidad</th><th>CESFAM</th><th>Citas</th><th>Asistidas</th><th>Inasist.</th><th>Canceladas</th><th>Última atención</th><th>Próxima cita</th><th></th></tr></thead>
+  <tbody>
+  {% for p in pagina %}
+  <tr>
+    <td><div class="celda-principal">{{ p.nombre }}</div><div class="celda-sec">RUT {{ p.rut|rut }}{% if p.en_espera %} · <span class="pill pill-azul">En espera</span>{% endif %}</div></td>
+    <td>{{ p.edad }} · {{ p.get_sexo_display }}{% if p.adulto_responsable %}<div class="celda-sec">Con adulto responsable</div>{% endif %}</td>
+    <td>{{ p.nacionalidad }}</td>
+    <td>{% if p.inscrito_cesfam %}<span class="pill pill-verde">Sí</span>{% else %}<span class="pill pill-naranjo">No</span>{% endif %}</td>
+    <td class="fw-bold">{{ p.n_citas }}</td>
+    <td>{{ p.n_asistidas }}</td>
+    <td>{% if p.n_inasistencias %}<span class="pill pill-rojo">{{ p.n_inasistencias }}</span>{% else %}0{% endif %}</td>
+    <td>{{ p.n_canceladas }}</td>
+    <td class="text-nowrap">{{ p.ultima_atencion|date:"d/m/Y"|default:"—" }}</td>
+    <td class="text-nowrap">{{ p.proxima_cita|date:"d/m/Y"|default:"—" }}</td>
+    <td class="text-end"><a class="btn btn-suave btn-xs" href="{% url 'reportes:paciente' p.pk %}?{{ qs_hist }}{% if qs_hist %}&{% endif %}volver={{ request.get_full_path|urlencode }}">Ver historial</a></td>
+  </tr>
+  {% empty %}<tr><td colspan="11" class="text-center text-gris py-4">No hay pacientes con estos filtros.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div></div>
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+  {% if pagina.has_other_pages %}
+  <nav><ul class="pagination pagination-sm mb-0">
+    {% if pagina.has_previous %}<li class="page-item"><a class="page-link" href="?{{ qs_filtros }}&page={{ pagina.previous_page_number }}">Anterior</a></li>{% endif %}
+    <li class="page-item disabled"><span class="page-link">Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span></li>
+    {% if pagina.has_next %}<li class="page-item"><a class="page-link" href="?{{ qs_filtros }}&page={{ pagina.next_page_number }}">Siguiente</a></li>{% endif %}
+  </ul></nav>
+  {% else %}<span></span>{% endif %}
+  <a class="btn btn-suave" href="{% url 'reportes:csv_pacientes' %}?{{ qs }}">Descargar listado (CSV)</a>
+</div>
+<p class="small text-gris mt-2">Los totales consideran las citas del período y de los filtros. «Última atención» y «Próxima cita» consideran todo el historial del paciente.</p>
 {% endif %}
 {% endblock %}

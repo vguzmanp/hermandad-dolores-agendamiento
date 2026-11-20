@@ -1,44 +1,89 @@
-from django.core.exceptions import PermissionDenied
+from urllib.parse import urlencode
+
+from django.core.paginator import Paginator
 from django.http import HttpResponse
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 
 from core import roles
-from profesionales.models import Policlinico, Profesional
+from pacientes.models import Paciente
 
-from .services import PERIODOS, ReporteService, construir_filtros
+from .forms import FiltroPacientesForm, FiltroReporteForm
+from .services import ReporteService, construir_filtros
 
 servicio = ReporteService()
+solo_admin = roles.rol_requerido(roles.ADMINISTRACION)
+
+FILTROS_CITA = ("periodo", "desde", "hasta", "policlinico", "especialidad", "profesional", "estado", "asistencia",
+                "canal", "sobrecupo")
+TABS = [("caracterizacion", "Caracterización"), ("demanda", "Demanda y atención"), ("pacientes", "Pacientes")]
 
 
-def _filtros(request):
-    g = request.GET
-    pol = Policlinico.objects.filter(pk=g.get("policlinico") or None).first()
-    prof = Profesional.objects.filter(pk=g.get("profesional") or None).first()
-    solo_propio = not roles.tiene_rol(request.user, roles.ADMINISTRACION)
-    if solo_propio:  # rol Profesional: solo sus propias estadísticas
-        prof = getattr(request.user, "profesional", None)
-        if prof is None:
-            raise PermissionDenied("Su usuario no está asociado a un profesional.")
-    return construir_filtros(g.get("periodo", "3m"), pol, prof), solo_propio
+def _filtros(request, form_class=FiltroReporteForm, periodo="3m"):
+    datos = request.GET.copy()
+    datos.setdefault("periodo", periodo)
+    form = form_class(datos)
+    form.is_valid()  # si un filtro no es válido se ignora y se muestra su error; el resto se aplica
+    return form, construir_filtros(form.cleaned_data)
 
 
-@roles.rol_requerido(roles.ADMINISTRACION, roles.PROFESIONAL)
+def _qs_sin(request, *claves) -> str:
+    q = request.GET.copy()
+    for c in claves:
+        q.pop(c, None)
+    return q.urlencode()
+
+
+def _csv(texto: str, nombre: str) -> HttpResponse:
+    resp = HttpResponse(texto, content_type="text/csv; charset=utf-8")
+    resp["Content-Disposition"] = f'attachment; filename="{nombre}"'
+    return resp
+
+
+@solo_admin
 def inicio(request):
-    f, solo_propio = _filtros(request)
-    tab = request.GET.get("tab", "demanda" if solo_propio else "caracterizacion")
-    ctx = {
-        "f": f, "tab": tab, "solo_propio": solo_propio, "periodo": request.GET.get("periodo", "3m"),
-        "periodos": [(k, t) for k, t, _ in PERIODOS],
-        "policlinicos": Policlinico.objects.all(), "profesionales": Profesional.objects.all(),
-        "qs": request.GET.urlencode(),
-    }
-    ctx["datos"] = servicio.demanda(f) if tab == "demanda" else servicio.caracterizacion(f)
+    tab = request.GET.get("tab") if request.GET.get("tab") in dict(TABS) else "caracterizacion"
+    form, f = _filtros(request, FiltroPacientesForm if tab == "pacientes" else FiltroReporteForm)
+    ctx = {"form": form, "f": f, "tab": tab, "tabs": TABS, "qs": _qs_sin(request, "tab", "page"),
+           "qs_filtros": _qs_sin(request, "page")}
+    if tab == "pacientes":
+        # al abrir el historial se mantienen el período y los filtros de la cita
+        hist = {k: v for k, v in request.GET.items() if k in FILTROS_CITA and v}
+        hist.setdefault("periodo", "3m")
+        ctx["qs_hist"] = urlencode(hist)
+        qs = servicio.pacientes(f)
+        ctx["resumen"] = servicio.resumen_pacientes(qs)
+        ctx["pagina"] = Paginator(qs, 40).get_page(request.GET.get("page"))
+    elif tab == "demanda":
+        ctx["datos"] = servicio.demanda(f)
+    else:
+        ctx["datos"] = servicio.caracterizacion(f)
     return render(request, "reportes/inicio.html", ctx)
 
 
-@roles.rol_requerido(roles.ADMINISTRACION, roles.PROFESIONAL)
+@solo_admin
 def csv_demanda(request):
-    f, _ = _filtros(request)
-    resp = HttpResponse(servicio.csv_demanda(f), content_type="text/csv; charset=utf-8")
-    resp["Content-Disposition"] = f'attachment; filename="demanda_{f.desde:%Y%m%d}_{f.hasta:%Y%m%d}.csv"'
-    return resp
+    _, f = _filtros(request)
+    return _csv(servicio.csv_demanda(f), "demanda_y_atencion.csv")
+
+
+@solo_admin
+def csv_pacientes(request):
+    _, f = _filtros(request, FiltroPacientesForm)
+    return _csv(servicio.csv_pacientes(f), "pacientes.csv")
+
+
+@solo_admin
+def paciente(request, pk):
+    p = get_object_or_404(Paciente.objects.select_related("adulto_responsable"), pk=pk)
+    form, f = _filtros(request, periodo="todo")
+    return render(request, "reportes/paciente.html", {
+        "p": p, "form": form, "f": f, "datos": servicio.historial(p, f),
+        "qs": request.GET.urlencode(), "volver": request.GET.get("volver", ""),
+    })
+
+
+@solo_admin
+def csv_paciente(request, pk):
+    p = get_object_or_404(Paciente, pk=pk)
+    _, f = _filtros(request, periodo="todo")
+    return _csv(servicio.csv_historial(p, f), f"historial_{p.rut}.csv")

@@ -10,9 +10,9 @@ from pacientes.models import Paciente
 
 class PortalReservaTests(CitasBase):
     def test_reserva_completa_paciente_existente(self):
-        r = self.client.get(reverse("portal:horas"), {"esp": self.esp.pk})
+        r = self.client.get(reverse("portal:horas"), {"esp": self.esp.pk, "pol": self.pol.pk})
         self.assertContains(r, self.prof.nombre)
-        self.client.post(reverse("portal:horas"), {"esp": self.esp.pk, "cupo": self.cupo.pk})
+        self.client.post(reverse("portal:horas"), {"esp": self.esp.pk, "pol": self.pol.pk, "cupo": self.cupo.pk})
         r = self.client.post(reverse("portal:datos"), {"paso": "rut", "rut": self.p1.rut})
         self.assertRedirects(r, reverse("portal:confirmar"))
         r = self.client.post(reverse("portal:confirmar"))
@@ -23,7 +23,7 @@ class PortalReservaTests(CitasBase):
         self.assertTrue(MensajeEnviado.objects.filter(cita=cita, tipo="agendamiento").exists())
 
     def test_reserva_paciente_nuevo_menor_con_responsable(self):
-        self.client.post(reverse("portal:horas"), {"esp": self.esp.pk, "cupo": self.cupo.pk})
+        self.client.post(reverse("portal:horas"), {"esp": self.esp.pk, "pol": self.pol.pk, "cupo": self.cupo.pk})
         r = self.client.post(reverse("portal:datos"), {"paso": "rut", "rut": "12.345.678-5"})
         self.assertContains(r, "Es la primera vez de este paciente")
         r = self.client.post(reverse("portal:datos"), {
@@ -39,7 +39,7 @@ class PortalReservaTests(CitasBase):
         self.assertTrue(Cita.objects.filter(paciente=p).exists())
 
     def test_hora_tomada_mientras_se_reservaba(self):
-        self.client.post(reverse("portal:horas"), {"esp": self.esp.pk, "cupo": self.cupo.pk})
+        self.client.post(reverse("portal:horas"), {"esp": self.esp.pk, "pol": self.pol.pk, "cupo": self.cupo.pk})
         self.client.post(reverse("portal:datos"), {"paso": "rut", "rut": self.p1.rut})
         self.agendar(self.p2)  # una TENS agenda esa hora antes de que el paciente confirme
         r = self.client.post(reverse("portal:confirmar"), follow=True)
@@ -48,13 +48,25 @@ class PortalReservaTests(CitasBase):
 
     def test_sin_horas_anotarse_en_lista_de_espera(self):
         Cupo.objects.update(bloqueado=True)
-        r = self.client.get(reverse("portal:horas"), {"esp": self.esp.pk})
+        r = self.client.get(reverse("portal:horas"), {"esp": self.esp.pk, "pol": self.pol.pk})
         self.assertContains(r, "No hay horas disponibles por ahora")
-        self.client.post(reverse("portal:horas"), {"esp": self.esp.pk, "accion": "espera"})
+        self.client.post(reverse("portal:horas"), {"esp": self.esp.pk, "pol": self.pol.pk, "accion": "espera"})
         r = self.client.post(reverse("portal:datos"), {"paso": "rut", "rut": self.p1.rut})
         self.assertRedirects(r, reverse("portal:espera_ok"))
         s = SolicitudEspera.objects.get(paciente=self.p1)
-        self.assertEqual((s.canal, s.estado), ("web", "en_espera"))
+        self.assertEqual((s.canal, s.estado, s.policlinico), ("web", "en_espera", self.pol))
+
+    def test_solo_policlinicos_que_atienden_la_especialidad(self):
+        from profesionales.models import Policlinico
+
+        otro = Policlinico.objects.create(nombre="Policlínico Sin Kinesiología")
+        r = self.client.get(reverse("portal:inicio"))
+        self.assertContains(r, f'data-pols="{self.pol.pk}"')
+        r = self.client.get(reverse("portal:horas"), {"esp": self.esp.pk, "pol": otro.pk})
+        self.assertRedirects(r, f"{reverse('portal:inicio')}?esp={self.esp.pk}")
+
+    def test_desde_el_portal_se_vuelve_a_la_portada(self):
+        self.assertContains(self.client.get(reverse("portal:inicio")), 'href="/"')
 
 
 class PortalAvisoTests(CitasBase):

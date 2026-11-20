@@ -3,7 +3,7 @@
 {% block titulo %}Asistencia{% endblock %}
 {% block contenido %}
 <h1 class="titulo-pagina">Asistencia</h1>
-<p class="subtitulo">Registra si el paciente asistió a su cita. El dato queda disponible para los reportes, sin pasarlo a Excel.</p>
+<p class="subtitulo">Registra si el paciente asistió a su cita{% if pol_tens %} en el {{ pol_tens.nombre }}{% endif %}. El dato queda disponible para los reportes.</p>
 
 <div class="d-flex align-items-center gap-3 mb-3">
   <a class="btn btn-gris btn-xs" href="?fecha={{ anterior|date:'Y-m-d' }}">‹</a>
@@ -14,8 +14,10 @@
 
 <form method="get" class="row g-3 mb-3 align-items-end">
   <input type="hidden" name="fecha" value="{{ fecha|date:'Y-m-d' }}">
+  {% if not pol_tens %}
   <div class="col-sm-4 col-lg-3"><label class="form-label">Policlínico</label>
     <select class="form-select" name="policlinico" data-autosubmit><option value="">Todos</option>{% for p in policlinicos %}<option value="{{ p.pk }}" {% if p == pol %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}</select></div>
+  {% endif %}
   <div class="col-sm-4 col-lg-3"><label class="form-label">Profesional</label>
     <select class="form-select" name="profesional" data-autosubmit><option value="">Todos</option>{% for p in profesionales %}<option value="{{ p.pk }}" {% if p == prof %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}</select></div>
   <div class="col-sm-4 col-lg-3"><label class="form-label">Buscar paciente</label><input class="form-control" name="q" value="{{ q }}" placeholder="Nombre o RUT"></div>
@@ -38,7 +40,7 @@
     <td>{{ c.cupo.agenda.profesional.nombre }}<div class="celda-sec">{{ c.cupo.agenda.profesional.especialidad }}</div></td>
     <td>{% pill_cita c %}
       {% if c.es_vigente %}<div><button class="btn btn-link btn-sm p-0 small" data-bs-toggle="modal" data-bs-target="#modalRespuesta"
-        data-url="{% url 'citas:accion' c.pk 'respuesta' %}" data-detalle="{{ c.paciente.nombre }} · {{ c.cupo.fecha|fecha_corta }} · {{ c.cupo.hora_inicio|time:'H:i' }}">Registrar respuesta</button></div>{% endif %}</td>
+        data-url="{% url 'citas:accion' c.pk 'respuesta' %}" data-estado="{{ c.estado }}" data-detalle="{{ c.paciente.nombre }} · {{ c.cupo.fecha|fecha_corta }} · {{ c.cupo.hora_inicio|time:'H:i' }}">{% if c.estado == "agendada" %}Registrar respuesta{% else %}Cambiar respuesta{% endif %}</button></div>{% endif %}</td>
     <td>
       {% if c.estado == "cancelada" %}<span class="small text-gris">Cita cancelada: no se registra asistencia</span>
       {% else %}

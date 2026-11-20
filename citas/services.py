@@ -26,6 +26,12 @@ class ResultadoAgendamiento:
     advertencias: list[str] = field(default_factory=list)
 
 
+def _exigir_policlinico(usuario, *cupos) -> None:
+    """La TENS/TONS solo opera sobre citas y horas de su propio policlínico."""
+    for cupo in cupos:
+        roles.exigir_policlinico(usuario, cupo.agenda.policlinico_id)
+
+
 def _marcar_lista_espera(cita: Cita) -> None:
     """Si el paciente estaba en lista de espera para esa especialidad, queda como «agendado»."""
     from lista_espera.services import ListaEsperaService
@@ -66,7 +72,7 @@ class AgendamientoService:
         maximo = self.max_sesiones(cupo)
         if sesiones > maximo:
             esp = cupo.agenda.profesional.especialidad
-            raise ReglaNegocioError(f"{esp.nombre} permite agendar como máximo {maximo} sesión(es) de una vez.", "RN-01")
+            raise ReglaNegocioError(f"{esp.nombre} permite agendar como máximo {maximo} sesión(es) de una vez.")
         with transaction.atomic():
             cupos = [cupo]
             if sesiones > 1:
@@ -74,7 +80,7 @@ class AgendamientoService:
                 if len(siguientes) < sesiones - 1:
                     raise ReglaNegocioError(
                         f"Solo hay {len(siguientes) + 1} horas disponibles para {sesiones} sesiones "
-                        f"(mismo profesional, policlínico y hora). Agende menos sesiones.", "RN-01")
+                        f"(mismo profesional, policlínico y hora). Agende menos sesiones.")
                 cupos += siguientes
                 datos = {**datos, "grupo_sesiones": uuid.uuid4(), "total_sesiones": sesiones}
             citas = [self.repo.crear_cita(c.pk, paciente, usuario, numero_sesion=i, **datos)
@@ -87,6 +93,7 @@ class AgendamientoService:
                 observaciones: str = "", canal: str = Cita.Canal.PRESENCIAL) -> ResultadoAgendamiento:
         """RN-01: la TENS agenda sobre un cupo disponible (y, si la especialidad lo permite, todas las sesiones)."""
         roles.exigir_rol(usuario, roles.TENS)
+        _exigir_policlinico(usuario, cupo)
         datos = {"observaciones": observaciones, "canal": canal}
         if dias_aviso is not None:
             datos["dias_aviso"] = dias_aviso
@@ -100,6 +107,7 @@ class AgendamientoService:
                           observaciones: str = "", canal: str = Cita.Canal.PRESENCIAL) -> ResultadoAgendamiento:
         """RN-07: sobrecupo solo cuando la cita del cupo está sin respuesta (máx. 2 citas por cupo)."""
         roles.exigir_rol(usuario, roles.TENS)
+        _exigir_policlinico(usuario, cupo)
         datos = {"observaciones": observaciones, "canal": canal}
         if dias_aviso is not None:
             datos["dias_aviso"] = dias_aviso
@@ -113,8 +121,10 @@ class AgendamientoService:
         """Cancela la cita y libera el cupo por completo. La TENS o el propio paciente (link del aviso)."""
         if not por_paciente:
             roles.exigir_rol(usuario, roles.TENS)
+            _exigir_policlinico(usuario, cita.cupo)
         with transaction.atomic():
-            cancelada = self.repo.cancelar(cita.pk, usuario, motivo or "Cancelada")
+            cancelada = self.repo.cancelar(cita.pk, usuario, motivo or "Cancelada",
+                                           origen="paciente" if por_paciente else "tens")
             self.notificador.enviar(cita.paciente, avisos.aviso_cancelacion(cita), cita, usuario)
         return cancelada
 
@@ -126,6 +136,7 @@ class AgendamientoService:
         """
         if not por_paciente:
             roles.exigir_rol(usuario, roles.TENS)
+            _exigir_policlinico(usuario, cita.cupo, nuevo_cupo)
         if not cita.es_vigente:
             raise TransicionEstadoInvalidaError("Solo se pueden cambiar citas vigentes.")
         if nuevo_cupo.pk == cita.cupo_id:
@@ -166,21 +177,27 @@ class ConfirmacionService:
 
     # ------------------------------------------------------------ comandos
     def enviar_recordatorio(self, cita: Cita, usuario) -> bool:
-        """Envía (o reintenta) el aviso. Devuelve True si el WhatsApp salió bien."""
+        """
+        Envía (o reintenta) el aviso por correo y por WhatsApp, cuando es posible.
+        Devuelve True si salió por al menos un medio.
+        """
         roles.exigir_rol(usuario, roles.TENS)
+        _exigir_policlinico(usuario, cita.cupo)
         if cita.estado not in (Estado.AGENDADA, Estado.SIN_RESPUESTA):
             raise ReglaNegocioError("Solo se envían avisos a citas agendadas o sin respuesta.", "ESTADO")
         with transaction.atomic():
             envios = self.notificador.enviar(cita.paciente, avisos.aviso_recordatorio(cita), cita, usuario)
-            ok = any(e.canal == MensajeEnviado.Canal.WHATSAPP and e.estado == MensajeEnviado.Estado.ENVIADO
-                     for e in envios)
+            ok = any(e.estado == MensajeEnviado.Estado.ENVIADO for e in envios)
             if ok:
                 self.repo.marcar_recordatorio(cita.pk)
         return ok
 
     def enviar_pendientes(self, usuario) -> tuple[int, int]:
         enviados = fallidos = 0
+        pol = roles.policlinico_de(usuario)
         for cita in self.recordatorios_pendientes():
+            if pol and cita.cupo.agenda.policlinico_id != pol.pk:
+                continue
             if self.enviar_recordatorio(cita, usuario):
                 enviados += 1
             else:
@@ -188,11 +205,14 @@ class ConfirmacionService:
         return enviados, fallidos
 
     def registrar_confirmacion(self, cita: Cita, usuario=None, por_paciente: bool = False) -> Cita:
+        """El paciente confirma desde el link del aviso (queda registrado solo) o la TENS lo registra."""
         if not por_paciente:
             roles.exigir_rol(usuario, roles.TENS)
+            _exigir_policlinico(usuario, cita.cupo)
         with transaction.atomic():
             cita = self.repo.cambiar_estado(cita.pk, Estado.CONFIRMADA, (Estado.AGENDADA, Estado.SIN_RESPUESTA),
-                                            respuesta_en=timezone.now())
+                                            respuesta_en=timezone.now(),
+                                            respuesta_origen="paciente" if por_paciente else "tens")
             self.notificador.enviar(cita.paciente, avisos.aviso_confirmacion(cita), cita, usuario)
         return cita
 
@@ -202,46 +222,63 @@ class ConfirmacionService:
         return self.agendamiento.cancelar(cita, usuario, motivo, por_paciente=por_paciente)
 
     def marcar_sin_respuesta(self, cita: Cita, usuario) -> Cita:
-        """El paciente no respondió: habilita el sobrecupo (RN-07)."""
+        """
+        El paciente no respondió: habilita el sobrecupo (RN-07). La TENS también
+        puede corregir una confirmación registrada por error.
+        """
         roles.exigir_rol(usuario, roles.TENS)
-        return self.repo.cambiar_estado(cita.pk, Estado.SIN_RESPUESTA, (Estado.AGENDADA,))
+        _exigir_policlinico(usuario, cita.cupo)
+        return self.repo.cambiar_estado(cita.pk, Estado.SIN_RESPUESTA, (Estado.AGENDADA, Estado.CONFIRMADA),
+                                        respuesta_en=timezone.now(), respuesta_origen="tens")
 
     def registrar_respuesta(self, cita: Cita, respuesta: str, usuario) -> Cita:
-        """Respuesta que la TENS registra cuando el paciente contestó por teléfono o en persona, o no contestó."""
+        """
+        La TENS registra o cambia la respuesta (el paciente contestó por teléfono o
+        en persona, o no contestó). Si es la misma respuesta actual, no cambia nada.
+        """
+        actual = {Estado.CONFIRMADA: "confirmar", Estado.SIN_RESPUESTA: "sin_respuesta"}.get(cita.estado)
+        if respuesta == actual:
+            return cita
         if respuesta == "confirmar":
             return self.registrar_confirmacion(cita, usuario)
         if respuesta == "cancelar":
-            return self.registrar_cancelacion(cita, usuario, "Avisó a la TENS (teléfono o en persona)")
+            return self.registrar_cancelacion(cita, usuario, "Avisó a la TENS/TONS (teléfono o en persona)")
         if respuesta == "sin_respuesta":
             return self.marcar_sin_respuesta(cita, usuario)
         raise ReglaNegocioError("Respuesta no válida.", "ESTADO")
 
 
 # ---------------------------------------------------------------- indicadores
-def resumen_tens(hoy=None) -> dict:
+def resumen_tens(hoy=None, policlinico=None) -> dict:
+    """Indicadores del inicio de la TENS/TONS (solo de su policlínico)."""
     from lista_espera.models import SolicitudEspera
 
     hoy = hoy or timezone.localdate()
     manana = hoy + timedelta(days=1)
     while manana.weekday() >= 5:  # próximo día hábil
         manana += timedelta(days=1)
-    proximas = (Cita.objects.filter(cupo__fecha__gte=hoy, cupo__fecha__lte=hoy + timedelta(days=7),
-                                    estado__in=Cita.VIGENTES).prefetch_related("mensajes"))
+    citas = Cita.objects.all()
+    espera = SolicitudEspera.objects.filter(estado__in=SolicitudEspera.ACTIVOS)
+    if policlinico:
+        citas = citas.filter(cupo__agenda__policlinico=policlinico)
+        espera = espera.filter(policlinico=policlinico)
+    proximas = (citas.filter(cupo__fecha__gte=hoy, cupo__fecha__lte=hoy + timedelta(days=7),
+                             estado__in=Cita.VIGENTES).prefetch_related("mensajes"))
     return {
-        "citas_hoy": Cita.objects.filter(cupo__fecha=hoy, estado__in=Cita.VIGENTES).count(),
-        "por_confirmar_manana": Cita.objects.filter(
+        "citas_hoy": citas.filter(cupo__fecha=hoy, estado__in=Cita.VIGENTES).count(),
+        "por_confirmar_manana": citas.filter(
             cupo__fecha=manana, estado__in=(Estado.AGENDADA, Estado.SIN_RESPUESTA)).count(),
-        "en_espera": SolicitudEspera.objects.filter(estado__in=SolicitudEspera.ACTIVOS).count(),
+        "en_espera": espera.count(),
         "avisos_con_falla": sum(1 for c in proximas if c.estado_aviso == "fallido"),
+        "sin_respuesta": citas.filter(cupo__fecha__gte=hoy, estado=Estado.SIN_RESPUESTA).count(),
     }
 
 
 def contador_alertas(usuario) -> int:
     """Número de la campana: avisos con falla + citas sin respuesta (TENS) o lista de espera (Administración)."""
     if roles.tiene_rol(usuario, roles.TENS):
-        r = resumen_tens()
-        sin_resp = Cita.objects.filter(cupo__fecha__gte=timezone.localdate(), estado=Estado.SIN_RESPUESTA).count()
-        return r["avisos_con_falla"] + sin_resp
+        r = resumen_tens(policlinico=roles.policlinico_de(usuario))
+        return r["avisos_con_falla"] + r["sin_respuesta"]
     if roles.tiene_rol(usuario, roles.ADMINISTRACION):
         from lista_espera.models import SolicitudEspera
 

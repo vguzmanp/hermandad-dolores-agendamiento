@@ -16,7 +16,7 @@ class ProfesionalRepository:
         return Especialidad.objects.annotate(n_profesionales=Count("profesionales"))
 
     def policlinicos(self):
-        return Policlinico.objects.annotate(n_agendas=Count("agendas", filter=Q(agendas__activa=True)))
+        return Policlinico.objects.select_related("usuario_tens").annotate(n_agendas=Count("agendas", filter=Q(agendas__activa=True)))
 
     def guardar(self, obj):
         obj.save()

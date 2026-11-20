@@ -27,6 +27,7 @@
         {% if cita.es_sobrecupo and cita.cita_original %}<dt class="col-sm-4">Sobrecupo de</dt><dd class="col-sm-8"><a href="{% url 'citas:detalle' cita.cita_original.pk %}">{{ cita.cita_original.paciente.nombre }}</a></dd>{% endif %}
         {% if cita.observaciones %}<dt class="col-sm-4">Observaciones</dt><dd class="col-sm-8">{{ cita.observaciones }}</dd>{% endif %}
         <dt class="col-sm-4">Agendada</dt><dd class="col-sm-8 small text-gris">{{ cita.creada_en|date:"d/m/Y H:i" }} · {% if cita.creada_por %}{{ cita.creada_por.get_full_name|default:cita.creada_por.username }}{% else %}el paciente desde la web{% endif %}</dd>
+        {% if cita.respuesta_origen %}<dt class="col-sm-4">Respuesta</dt><dd class="col-sm-8 small">{{ cita.get_respuesta_origen_display }} · {{ cita.respuesta_en|date:"d/m/Y H:i" }}</dd>{% endif %}
         {% if cita.estado == "cancelada" %}<dt class="col-sm-4">Cancelación</dt><dd class="col-sm-8 small">{{ cita.cancelada_en|date:"d/m/Y H:i" }} · {{ cita.motivo_cancelacion }}</dd>{% endif %}
         {% if cita.asistencia_registrada %}<dt class="col-sm-4">Asistencia</dt><dd class="col-sm-8">{% if cita.asistencia_registrada.asistio %}<span class="pill pill-verde">Asistió</span>{% else %}<span class="pill pill-rojo">No asistió</span>{% endif %}</dd>{% endif %}
       </dl>
@@ -34,7 +35,7 @@
       <hr>
       <div class="d-flex flex-wrap gap-2">
         <form method="post" action="{% url 'citas:accion' cita.pk 'aviso' %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}"><button class="btn btn-gris btn-xs">Enviar / reintentar aviso</button></form>
-        <button class="btn btn-suave btn-xs" data-bs-toggle="modal" data-bs-target="#modalRespuesta" data-url="{% url 'citas:accion' cita.pk 'respuesta' %}" data-detalle="{{ cita.paciente.nombre }} · {{ cita.cupo.fecha|fecha_corta }} · {{ cita.cupo.hora_inicio|time:'H:i' }}">Registrar respuesta</button>
+        <button class="btn btn-suave btn-xs" data-bs-toggle="modal" data-bs-target="#modalRespuesta" data-url="{% url 'citas:accion' cita.pk 'respuesta' %}" data-estado="{{ cita.estado }}" data-detalle="{{ cita.paciente.nombre }} · {{ cita.cupo.fecha|fecha_corta }} · {{ cita.cupo.hora_inicio|time:'H:i' }}">{% if cita.estado == "agendada" %}Registrar respuesta{% else %}Cambiar respuesta{% endif %}</button>
         <a class="btn btn-suave btn-xs" href="{% url 'citas:agendar' %}?reagendar={{ cita.pk }}">Reagendar</a>
         {% if cita.estado == "sin_respuesta" and not otras_del_cupo %}<a class="btn btn-xs btn-blanco" href="{% url 'citas:agendar' %}?especialidad={{ cita.cupo.agenda.profesional.especialidad_id }}&profesional={{ cita.cupo.agenda.profesional_id }}&fecha={{ cita.cupo.fecha|date:'Y-m-d' }}">Agendar sobrecupo en esta hora</a>{% endif %}
       </div>
@@ -54,7 +55,7 @@
     {% endif %}
   </div>
   <div class="col-lg-5">
-    <h2 class="h6">Avisos enviados (simulados)</h2>
+    <h2 class="h6">Avisos enviados</h2>
     {% for m in mensajes_cita %}{% include "citas/_mensaje.html" %}{% empty %}<p class="text-gris small">Sin avisos.</p>{% endfor %}
   </div>
 </div>

@@ -62,6 +62,10 @@ class Cita(models.Model):
     creada_en = models.DateTimeField(default=timezone.now)
     recordatorio_enviado_en = models.DateTimeField(null=True, blank=True)
     respuesta_en = models.DateTimeField(null=True, blank=True)
+    respuesta_origen = models.CharField(
+        "respuesta registrada por", max_length=10, blank=True,
+        choices=[("paciente", "El paciente (link del aviso)"), ("tens", "TENS/TONS")],
+    )
     cancelada_en = models.DateTimeField(null=True, blank=True)
     cancelada_por = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
@@ -102,13 +106,16 @@ class Cita(models.Model):
 
     @property
     def estado_aviso(self) -> str:
-        """'por_enviar', 'fallido' o 'enviado' según el último recordatorio por WhatsApp."""
-        recordatorios = [m for m in self.mensajes.all()
-                         if m.tipo == MensajeEnviado.Tipo.RECORDATORIO and m.canal == MensajeEnviado.Canal.WHATSAPP]
+        """
+        'por_enviar', 'fallido' o 'enviado'. El aviso sale por correo y por WhatsApp
+        cuando es posible: basta con que llegue por uno de los dos medios.
+        """
+        recordatorios = [m for m in self.mensajes.all() if m.tipo == MensajeEnviado.Tipo.RECORDATORIO]
         if not recordatorios:
             return "por_enviar"
-        ultimo = max(recordatorios, key=lambda m: (m.enviado_en, m.pk))
-        return ultimo.estado
+        if any(m.estado == MensajeEnviado.Estado.ENVIADO for m in recordatorios):
+            return "enviado"
+        return "fallido"
 
     @property
     def asistencia_registrada(self):
@@ -117,7 +124,7 @@ class Cita(models.Model):
 
 
 class MensajeEnviado(models.Model):
-    """Registro de mensajes de NotificadorLog (simula el envío por WhatsApp)."""
+    """Registro de los avisos enviados al paciente por correo y WhatsApp (NotificadorLog)."""
 
     class Tipo(models.TextChoices):
         AGENDAMIENTO = "agendamiento", "Hora reservada"

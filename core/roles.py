@@ -5,9 +5,9 @@ from django.core.exceptions import PermissionDenied
 
 ADMINISTRACION = "Administración"
 TENS = "TENS/TONS"
-PROFESIONAL = "Profesional"
 
-TODOS_LOS_ROLES = (ADMINISTRACION, TENS, PROFESIONAL)
+# Los profesionales no usan el sistema: solo la Administración y las TENS/TONS tienen cuenta.
+TODOS_LOS_ROLES = (ADMINISTRACION, TENS)
 
 
 def tiene_rol(usuario, *roles: str) -> bool:
@@ -27,6 +27,36 @@ def exigir_rol(usuario, *roles: str) -> None:
     """Usado en la capa de servicios: lanza PermissionDenied si no tiene el rol."""
     if not tiene_rol(usuario, *roles):
         raise PermissionDenied("Su rol no tiene permiso para realizar esta acción.")
+
+
+def policlinico_de(usuario):
+    """
+    Policlínico en el que trabaja una TENS/TONS (cada policlínico tiene su propio
+    usuario, con el nombre del policlínico). None = ve todos los policlínicos
+    (Administración o superusuario).
+    """
+    if not usuario or not usuario.is_authenticated or usuario.is_superuser:
+        return None
+    if not tiene_rol(usuario, TENS):
+        return None
+    if hasattr(usuario, "_policlinico_cache"):
+        return usuario._policlinico_cache
+    from profesionales.models import Policlinico
+
+    pol = Policlinico.objects.filter(usuario_tens=usuario).first()
+    if pol is None and not tiene_rol(usuario, ADMINISTRACION):
+        raise PermissionDenied("Su usuario TENS/TONS no está asociado a ningún policlínico.")
+    usuario._policlinico_cache = pol
+    return pol
+
+
+def exigir_policlinico(usuario, policlinico) -> None:
+    """Una TENS/TONS solo puede operar sobre su propio policlínico."""
+    propio = policlinico_de(usuario)
+    if propio is None:
+        return
+    if policlinico is None or propio.pk != getattr(policlinico, "pk", policlinico):
+        raise PermissionDenied(f"Solo puede operar en el {propio.nombre}.")
 
 
 class RolRequeridoMixin(LoginRequiredMixin):

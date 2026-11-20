@@ -42,6 +42,7 @@ class AsistenciaService:
     def registrar(self, cita: Cita, asistio: bool, usuario) -> Asistencia:
         """Si se marcó mal, volver a registrar corrige el dato."""
         roles.exigir_rol(usuario, roles.TENS)
+        roles.exigir_policlinico(usuario, cita.cupo.agenda.policlinico_id)
         if cita.estado == Cita.Estado.CANCELADA:
             raise ReglaNegocioError("La cita está cancelada: no se registra asistencia.", "ASISTENCIA")
         if cita.cupo.fecha > timezone.localdate():

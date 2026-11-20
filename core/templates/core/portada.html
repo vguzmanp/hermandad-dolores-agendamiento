@@ -3,6 +3,7 @@
 {% block url_marca %}/{% endblock %}
 {% block subtitulo_cabecera %}Sistema de agendamiento de horas{% endblock %}
 {% block derecha_cabecera %}{% endblock %}
+{% block volver_inicio %}{% endblock %}
 {% block cuerpo %}
 <div class="py-4">
   <h1 class="titulo-pagina" style="font-size:2.1rem">¿Cómo quieres entrar?</h1>
@@ -18,18 +19,17 @@
     <div class="col-md-4">
       <div class="tarjeta tarjeta-cuerpo h-100 d-flex flex-column">
         <h2 class="h4">TENS/TONS</h2>
-        <p class="text-gris flex-grow-1">Agenda en nombre del paciente, documentos, lista de espera y asistencia.</p>
+        <p class="text-gris flex-grow-1">Cada policlínico entra con su propio usuario: agenda, avisos, lista de espera, asistencia y documentos.</p>
         <div><a class="btn btn-primary btn-lg-hd" href="{% url 'login' %}?rol=tens">Entrar como TENS</a></div>
       </div>
     </div>
     <div class="col-md-4">
       <div class="tarjeta tarjeta-cuerpo h-100 d-flex flex-column">
         <h2 class="h4">Administración</h2>
-        <p class="text-gris flex-grow-1">Profesionales, horarios, bloqueo de horas y reportes.</p>
+        <p class="text-gris flex-grow-1">Profesionales, horarios, bloqueo de horas, reportes y pacientes.</p>
         <div><a class="btn btn-primary btn-lg-hd" href="{% url 'login' %}?rol=admin">Entrar como Administración</a></div>
       </div>
     </div>
   </div>
-  <p class="small text-gris mt-4">¿Eres profesional de la Hermandad? <a href="{% url 'login' %}?rol=profesional">Ingresa aquí</a> para ver tus citas y estadísticas.</p>
 </div>
 {% endblock %}

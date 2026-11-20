@@ -25,11 +25,14 @@ tens_o_admin = roles.rol_requerido(roles.TENS, roles.ADMINISTRACION)
 def _seleccion(request):
     """Especialidad y profesional elegidos en los filtros (por defecto, el primero)."""
     datos = request.GET if request.method == "GET" else request.POST
-    especialidades = Especialidad.objects.filter(activa=True)
+    pol_tens = roles.policlinico_de(request.user)
+    especialidades = pol_tens.especialidades if pol_tens else Especialidad.objects.filter(activa=True)
     esp = especialidades.filter(pk=datos.get("especialidad") or None).first()
     profesionales = Profesional.objects.select_related("especialidad")
     if not roles.tiene_rol(request.user, roles.ADMINISTRACION):
         profesionales = profesionales.filter(activo=True)
+    if pol_tens:  # la TENS/TONS solo ve a quienes atienden en su policlínico
+        profesionales = profesionales.filter(agendas__policlinico=pol_tens, agendas__activa=True).distinct()
     prof = profesionales.filter(pk=datos.get("profesional") or None).first()
     if prof and esp is None:
         esp = prof.especialidad
@@ -76,6 +79,9 @@ def horario(request):
         else:
             abrir_modal = True
     bloques = prof.agendas.filter(activa=True).select_related("policlinico").order_by("dia_semana", "hora_inicio") if prof else []
+    pol_tens = roles.policlinico_de(request.user)
+    if prof and pol_tens:
+        bloques = bloques.filter(policlinico=pol_tens)
     return render(request, "agenda/horario.html", {
         "especialidades": especialidades, "esp": esp, "profesionales": profesionales, "prof": prof,
         "bloques": bloques, "form": form, "abrir_modal": abrir_modal, "es_admin_agenda": es_admin,
@@ -104,9 +110,12 @@ def calendario(request):
         semanas.sort()
     dias = [lunes + timedelta(days=i) for i in range(7)]
     cupos = []
+    pol_tens = roles.policlinico_de(request.user)
     if prof:
-        cupos = list(Cupo.objects.filter(agenda__profesional=prof, fecha__range=(dias[0], dias[-1]))
-                     .select_related("agenda__policlinico").prefetch_related("citas"))
+        qs = Cupo.objects.filter(agenda__profesional=prof, fecha__range=(dias[0], dias[-1]))
+        if pol_tens:
+            qs = qs.filter(agenda__policlinico=pol_tens)
+        cupos = list(qs.select_related("agenda__policlinico").prefetch_related("citas"))
     if not any(c.fecha.weekday() >= 5 for c in cupos):
         dias = dias[:5]
     horas = sorted({c.hora_inicio for c in cupos})
@@ -133,7 +142,11 @@ def calendario(request):
 @require_POST
 def calendario_accion(request):
     ids = [int(x) for x in request.POST.getlist("cupo") if x.isdigit()]
-    cupos = list(Cupo.objects.filter(pk__in=ids, fecha__gte=timezone.localdate()).prefetch_related("citas"))
+    qs = Cupo.objects.filter(pk__in=ids, fecha__gte=timezone.localdate())
+    pol_tens = roles.policlinico_de(request.user)
+    if pol_tens:
+        qs = qs.filter(agenda__policlinico=pol_tens)
+    cupos = list(qs.select_related("agenda").prefetch_related("citas"))
     accion = request.POST.get("accion")
     if not cupos:
         messages.error(request, "Selecciona uno o más bloques.")

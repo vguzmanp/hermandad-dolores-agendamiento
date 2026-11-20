@@ -69,17 +69,19 @@ class AgendaService:
     def bloquear_cupo(self, cupo: Cupo, motivo: str, usuario) -> Cupo:
         roles.exigir_rol(usuario, roles.ADMINISTRACION, roles.TENS)
         # Se bloquea la fila para que no se agende una cita mientras se bloquea el cupo.
-        cupo = Cupo.objects.select_for_update().get(pk=cupo.pk)
+        cupo = Cupo.objects.select_related("agenda").select_for_update(of=("self",)).get(pk=cupo.pk)
+        roles.exigir_policlinico(usuario, cupo.agenda.policlinico_id)
         if cupo.citas_vigentes:
             raise ReglaNegocioError(
                 "El cupo tiene citas vigentes; deben cancelarse antes de bloquearlo.", "AGENDA"
             )
         cupo.bloqueado = True
-        cupo.motivo_bloqueo = motivo or "Bloqueado por Administración"
+        cupo.motivo_bloqueo = motivo or "Hora bloqueada"
         return self.cupos.guardar(cupo)
 
     def liberar_cupo(self, cupo: Cupo, usuario) -> Cupo:
         roles.exigir_rol(usuario, roles.ADMINISTRACION, roles.TENS)
+        roles.exigir_policlinico(usuario, cupo.agenda.policlinico_id)
         cupo.bloqueado = False
         cupo.motivo_bloqueo = ""
         return self.cupos.guardar(cupo)

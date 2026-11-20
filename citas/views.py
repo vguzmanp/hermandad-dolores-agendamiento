@@ -47,9 +47,11 @@ def _int(valor):
     return int(valor) if valor and str(valor).isdigit() else None
 
 
-def _solo_profesional(usuario) -> bool:
-    """Rol Profesional sin rol TENS/Administración: solo ve sus propias citas."""
-    return roles.tiene_rol(usuario, roles.PROFESIONAL) and not roles.tiene_rol(usuario, roles.TENS, roles.ADMINISTRACION)
+def _citas_visibles(usuario):
+    """Citas que puede ver el usuario: la TENS/TONS solo las de su policlínico."""
+    pol = roles.policlinico_de(usuario)
+    qs = repo.listar()
+    return qs.filter(cupo__agenda__policlinico=pol) if pol else qs
 
 
 # ======================================================================
@@ -77,18 +79,23 @@ def agendar(request):
     g = request.GET
     hoy = timezone.localdate()
 
+    pol_tens = roles.policlinico_de(request.user)
     reagendar = None
     if _int(g.get("reagendar")):
-        reagendar = Cita.objects.select_related("cupo__agenda__profesional__especialidad", "paciente").filter(
-            pk=g["reagendar"], estado__in=Cita.VIGENTES).first()
+        reagendar = _citas_visibles(request.user).filter(pk=g["reagendar"], estado__in=Cita.VIGENTES).first()
     paciente = reagendar.paciente if reagendar else Paciente.objects.filter(pk=_int(g.get("paciente"))).first()
 
-    especialidades = Especialidad.objects.filter(activa=True)
+    # La TENS/TONS agenda solo en su policlínico y solo especialidades que se atienden ahí.
+    especialidades = pol_tens.especialidades if pol_tens else Especialidad.objects.filter(activa=True)
     especialidad = especialidades.filter(pk=_int(g.get("especialidad"))).first()
     if especialidad is None and reagendar:
-        especialidad = reagendar.cupo.agenda.profesional.especialidad
-    policlinicos = Policlinico.objects.filter(activo=True)
-    policlinico = policlinicos.filter(pk=_int(g.get("policlinico"))).first()
+        especialidad = especialidades.filter(pk=reagendar.cupo.agenda.profesional.especialidad_id).first()
+    if pol_tens:
+        policlinicos = Policlinico.objects.filter(pk=pol_tens.pk)
+        policlinico = pol_tens
+    else:
+        policlinicos = especialidad.policlinicos if especialidad else Policlinico.objects.filter(activo=True)
+        policlinico = policlinicos.filter(pk=_int(g.get("policlinico"))).first()
 
     profesionales = Profesional.objects.filter(activo=True).select_related("especialidad")
     if especialidad:
@@ -148,17 +155,20 @@ def agendar(request):
     citas_paciente = []
     en_espera = None
     if paciente:
-        citas_paciente = (repo.listar(paciente=paciente).select_related("asistencia")
-                          .order_by("-cupo__fecha", "-cupo__hora_inicio")[:15])
+        citas_paciente = repo.listar(paciente=paciente, policlinico=pol_tens).select_related("asistencia")
+        citas_paciente = citas_paciente.order_by("-cupo__fecha", "-cupo__hora_inicio")[:15]
         if especialidad:
             from lista_espera.models import SolicitudEspera
             en_espera = SolicitudEspera.objects.filter(paciente=paciente, especialidad=especialidad,
-                                                       estado__in=SolicitudEspera.ACTIVOS).first()
+                                                       estado__in=SolicitudEspera.ACTIVOS)
+            if policlinico:
+                en_espera = en_espera.filter(policlinico=policlinico)
+            en_espera = en_espera.select_related("policlinico").first()
 
     return render(request, "citas/agendar.html", {
         "hoy": hoy, "paciente": paciente, "reagendar": reagendar, "q": q, "encontrados": encontrados,
         "especialidades": especialidades, "especialidad": especialidad,
-        "policlinicos": policlinicos, "policlinico": policlinico,
+        "policlinicos": policlinicos, "policlinico": policlinico, "pol_tens": pol_tens,
         "profesionales": profesionales, "profesional": profesional,
         "canales": Cita.Canal.choices, "canal": canal, "max_ses": max_ses, "sesiones": sesiones,
         "rango_sesiones": range(1, max_ses + 1),
@@ -181,17 +191,23 @@ def _agendar_post(request):
 
     if p.get("accion") == "espera":
         esp = get_object_or_404(Especialidad, pk=_int(p.get("especialidad")))
-        prof = Profesional.objects.filter(pk=_int(p.get("profesional"))).first()
-        pol = Policlinico.objects.filter(pk=_int(p.get("policlinico"))).first()
-        ListaEsperaService().anotar(paciente, esp, prof, pol, canal, request.user)
-        _toast(request, f"{paciente.nombre} quedó anotado/a en la lista de espera")
+        pol = roles.policlinico_de(request.user) or Policlinico.objects.filter(pk=_int(p.get("policlinico"))).first()
+        if pol is None:
+            messages.error(request, "Elige el policlínico para anotar al paciente en la lista de espera.")
+            return volver
+        try:
+            ListaEsperaService().anotar(paciente, esp, pol, canal, request.user)
+        except ReglaNegocioError as e:
+            messages.error(request, str(e))
+            return volver
+        _toast(request, f"{paciente.nombre} quedó anotado/a en la lista de espera de {esp.nombre} · {pol.nombre}")
         return volver
 
     cupo = get_object_or_404(Cupo.objects.select_related("agenda__profesional__especialidad"), pk=_int(p.get("cupo")))
     es_sobrecupo = p.get("tipo") == "sobrecupo"
     try:
         if _int(p.get("reagendar")):
-            original = get_object_or_404(Cita, pk=p["reagendar"], paciente=paciente)
+            original = get_object_or_404(_citas_visibles(request.user), pk=p["reagendar"], paciente=paciente)
             nueva = agendamiento.reagendar(original, cupo, request.user, es_sobrecupo=es_sobrecupo)
             _toast(request, f"Hora cambiada a {fecha_corta(nueva.cupo.fecha)} {nueva.cupo.hora_inicio:%H:%M}. La anterior quedó libre.")
             return volver
@@ -202,9 +218,12 @@ def _agendar_post(request):
     except ReglaNegocioError as e:
         messages.error(request, str(e))
         return volver
+    except PermissionDenied as e:
+        messages.error(request, str(e))
+        return volver
     n = len(res.citas)
     texto = "Sobrecupo agendado" if es_sobrecupo else ("Cita agendada" if n == 1 else f"{n} sesiones agendadas")
-    _toast(request, f"{texto} · aviso enviado por WhatsApp")
+    _toast(request, f"{texto} · se avisó al paciente")
     for aviso in res.advertencias:
         messages.warning(request, aviso)
     return volver
@@ -213,35 +232,28 @@ def _agendar_post(request):
 # ======================================================================
 # Listado, detalle y acciones
 # ======================================================================
-@roles.rol_requerido(roles.TENS, roles.ADMINISTRACION, roles.PROFESIONAL)
+@roles.rol_requerido(roles.TENS, roles.ADMINISTRACION)
 def lista(request):
     hoy = timezone.localdate()
-    form = FiltroCitasForm(request.GET or None, initial={"desde": hoy, "hasta": hoy + timedelta(days=7)})
+    pol_tens = roles.policlinico_de(request.user)
+    form = FiltroCitasForm(request.GET or None, initial={"desde": hoy, "hasta": hoy + timedelta(days=7)},
+                           policlinico=pol_tens)
     filtros = {"fecha_desde": hoy, "fecha_hasta": hoy + timedelta(days=7)}
     if form.is_bound and form.is_valid():
         d = form.cleaned_data
         filtros = {"fecha_desde": d["desde"], "fecha_hasta": d["hasta"], "profesional": d["profesional"],
-                   "policlinico": d["policlinico"], "estado": d["estado"] or None}
-    if _solo_profesional(request.user):
-        prof = getattr(request.user, "profesional", None)
-        if prof is None:
-            raise PermissionDenied("Su usuario no está asociado a un profesional.")
-        filtros["profesional"] = prof
-        form.fields.pop("profesional", None)
+                   "policlinico": d.get("policlinico"), "estado": d["estado"] or None}
+    if pol_tens:
+        filtros["policlinico"] = pol_tens
     qs = repo.listar(**filtros).select_related("asistencia").order_by("cupo__fecha", "cupo__hora_inicio")
     pagina = Paginator(qs, 50).get_page(request.GET.get("page"))
     return render(request, "citas/lista.html", {"form": form, "pagina": pagina,
                                                 "solo_lectura": not roles.tiene_rol(request.user, roles.TENS)})
 
 
-@roles.rol_requerido(roles.TENS, roles.ADMINISTRACION, roles.PROFESIONAL)
+@roles.rol_requerido(roles.TENS, roles.ADMINISTRACION)
 def detalle(request, pk):
-    try:
-        cita = repo.obtener(pk)
-    except Cita.DoesNotExist:
-        raise Http404
-    if _solo_profesional(request.user) and cita.cupo.agenda.profesional.usuario_id != request.user.pk:
-        raise PermissionDenied("Solo puede ver sus propias citas.")
+    cita = get_object_or_404(_citas_visibles(request.user), pk=pk)
     sesiones = repo.listar().filter(grupo_sesiones=cita.grupo_sesiones).order_by("numero_sesion") if cita.grupo_sesiones else []
     return render(request, "citas/detalle.html", {
         "cita": cita, "sesiones": sesiones,
@@ -254,17 +266,20 @@ def detalle(request, pk):
 @solo_tens
 @require_POST
 def accion(request, pk, accion):
-    cita = get_object_or_404(repo.listar(), pk=pk)
+    cita = get_object_or_404(_citas_visibles(request.user), pk=pk)
     try:
         if accion == "aviso":
             if confirmacion.enviar_recordatorio(cita, request.user):
-                _toast(request, "Aviso enviado por WhatsApp")
+                _toast(request, "Aviso enviado al paciente")
             else:
-                messages.error(request, f"No se pudo enviar el aviso por WhatsApp a {cita.paciente.nombre}: revise el "
-                                        f"celular o llame al paciente y registre su respuesta.")
+                messages.error(request, f"No se pudo enviar el aviso a {cita.paciente.nombre}: revise sus datos de "
+                                        f"contacto o llame al paciente y registre su respuesta.")
         elif accion == "respuesta":
-            confirmacion.registrar_respuesta(cita, request.POST.get("respuesta", ""), request.user)
-            _toast(request, "Respuesta registrada")
+            antes = cita.estado
+            cita = confirmacion.registrar_respuesta(cita, request.POST.get("respuesta", ""), request.user)
+            _toast(request, "Respuesta registrada" if antes == Cita.Estado.AGENDADA else "Respuesta actualizada")
+            if getattr(cita, "sobrecupo_promovido", None):
+                messages.info(request, f"El sobrecupo de {cita.sobrecupo_promovido.paciente.nombre} pasó a ser la cita del cupo.")
         elif accion == "confirmar":
             confirmacion.registrar_confirmacion(cita, request.user)
             _toast(request, "Cita confirmada")
@@ -294,6 +309,9 @@ def enviar_todos(request):
 @solo_tens
 def mensajes(request):
     qs = MensajeEnviado.objects.select_related("paciente", "cita__cupo", "enviado_por")
+    pol_tens = roles.policlinico_de(request.user)
+    if pol_tens:
+        qs = qs.filter(cita__cupo__agenda__policlinico=pol_tens)
     pid = _int(request.GET.get("paciente"))
     if pid:
         qs = qs.filter(paciente_id=pid)

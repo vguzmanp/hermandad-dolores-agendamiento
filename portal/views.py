@@ -1,9 +1,10 @@
 """
 Portal público del paciente (sin cuenta ni clave).
 
-Reserva en 4 pasos: 1) especialidad, 2) profesional y hora, 3) datos del paciente
-(por RUT: si ya existe no se vuelven a pedir), 4) confirmar. Si no hay horas, el
-paciente puede anotarse en la lista de espera.
+Reserva en 4 pasos: 1) especialidad y policlínico (solo los que atienden esa
+especialidad), 2) profesional y hora, 3) datos del paciente (por RUT: si ya
+existe no se vuelven a pedir), 4) confirmar. Si no hay horas, el paciente puede
+anotarse en la lista de espera de esa especialidad en ese policlínico.
 
 El link del aviso (/c/<código>/) permite confirmar, cambiar o cancelar la hora.
 """
@@ -53,12 +54,24 @@ def _chip(d):
 
 
 # ----------------------------------------------------------- paso 1
+def _especialidades_con_policlinicos():
+    """Especialidades con al menos un policlínico donde se atienden, y esos policlínicos."""
+    res = []
+    for e in Especialidad.objects.filter(activa=True).order_by("nombre"):
+        pols = list(e.policlinicos)
+        if pols:
+            res.append((e, pols))
+    return res
+
+
 def inicio(request):
     request.session.pop("reserva", None)
+    opciones = _especialidades_con_policlinicos()
+    policlinicos = {p.pk: p for _, pols in opciones for p in pols}
     return render(request, "portal/paso1.html", {
-        "especialidades": Especialidad.objects.filter(activa=True, profesionales__activo=True).distinct(),
-        "policlinicos": Policlinico.objects.filter(activo=True),
-        "profesionales": Profesional.objects.filter(activo=True).select_related("especialidad"),
+        "especialidades": [{"e": e, "pols": ",".join(str(p.pk) for p in pols)} for e, pols in opciones],
+        "policlinicos": sorted(policlinicos.values(), key=lambda p: (p.es_telemedicina, p.nombre)),
+        "esp_sel": request.GET.get("esp", ""), "pol_sel": request.GET.get("pol", ""),
     })
 
 
@@ -66,7 +79,7 @@ def inicio(request):
 def _filtros_paso2(request):
     g = request.GET if request.method == "GET" else request.POST
     esp = Especialidad.objects.filter(pk=g.get("esp") or None, activa=True).first()
-    pol = Policlinico.objects.filter(pk=g.get("pol") or None).first()
+    pol = Policlinico.objects.filter(pk=g.get("pol") or None, activo=True).first()
     prof = Profesional.objects.filter(pk=g.get("prof") or None, activo=True).first()
     return esp, pol, prof
 
@@ -76,10 +89,12 @@ def horas(request):
     if esp is None:
         messages.error(request, "Elige una especialidad.")
         return redirect("portal:inicio")
+    if pol is None or not esp.policlinicos.filter(pk=pol.pk).exists():
+        messages.error(request, f"Elige un policlínico donde se atienda {esp.nombre}.")
+        return redirect(f"{reverse('portal:inicio')}?esp={esp.pk}")
     if request.method == "POST":
         if request.POST.get("accion") == "espera":
-            _guardar(request, esp=esp.pk, pol=pol.pk if pol else None, prof=prof.pk if prof else None,
-                     espera=True, cupo=None)
+            _guardar(request, esp=esp.pk, pol=pol.pk, prof=None, espera=True, cupo=None)
             return redirect("portal:datos")
         cupo = Cupo.objects.filter(pk=request.POST.get("cupo") or None).first()
         if cupo is None:
@@ -187,10 +202,14 @@ def _paciente_listo(request, paciente):
     r = _reserva(request)
     if r.get("espera"):
         esp = get_object_or_404(Especialidad, pk=r["esp"])
-        ListaEsperaService().anotar(paciente, esp, Profesional.objects.filter(pk=r.get("prof") or None).first(),
-                                    Policlinico.objects.filter(pk=r.get("pol") or None).first(), canal="web")
+        pol = get_object_or_404(Policlinico, pk=r.get("pol"))
+        try:
+            ListaEsperaService().anotar(paciente, esp, pol, canal="web")
+        except ReglaNegocioError as e:
+            messages.error(request, e.mensaje)
+            return redirect("portal:inicio")
         request.session.pop("reserva", None)
-        request.session["espera_especialidad"] = esp.nombre
+        request.session["espera_especialidad"] = f"{esp.nombre} · {pol.nombre}"
         return redirect("portal:espera_ok")
     _guardar(request, paciente=paciente.pk)
     return redirect("portal:confirmar")
@@ -291,7 +310,8 @@ def cambiar(request, token):
             else:
                 return redirect(f"{reverse('portal:resultado', args=[nueva.token])}?r=cambiada")
     hoy = timezone.localdate()
-    libres = [c for c in repo.cupos_libres({"desde": hoy, "hasta": hoy + timedelta(days=DIAS_BUSQUEDA), "profesional": prof})
+    libres = [c for c in repo.cupos_libres({"desde": hoy, "hasta": hoy + timedelta(days=DIAS_BUSQUEDA), "profesional": prof,
+                                       "policlinico": cita.cupo.agenda.policlinico})
               if c.pk != cita.cupo_id]
     por_dia = {}
     for c in libres:

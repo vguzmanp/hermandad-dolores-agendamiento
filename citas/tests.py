@@ -36,7 +36,7 @@ class CitasBase(TestCase):
         self.esp = Especialidad.objects.create(nombre="Kinesiología", duracion_cupo_min=30,
                                                permite_agendar_todas_sesiones=True, sesiones_por_tratamiento=3)
         self.prof = Profesional.objects.create(nombre="Klgo. Prueba", rut="11111111-1", especialidad=self.esp)
-        self.pol = Policlinico.objects.create(nombre="Policlínico Prueba")
+        self.pol = Policlinico.objects.create(nombre="Policlínico Prueba", usuario_tens=self.tens)
         self.manana = timezone.localdate() + timedelta(days=1)
         self.agenda = Agenda.objects.create(
             profesional=self.prof, policlinico=self.pol, dia_semana=self.manana.weekday(),
@@ -248,7 +248,8 @@ class CitasVistasTests(CitasBase):
         self.assertEqual(cita.canal, "telefono")
         # doble asignación por interfaz: rechazada con mensaje
         r = self.client.post(reverse("citas:agendar"), {**datos, "paciente": self.p2.pk}, follow=True)
-        self.assertContains(r, "RN-02")
+        self.assertContains(r, "ya tiene una cita asignada")
+        self.assertNotContains(r, "RN-02")
         # «Registrar respuesta: sin respuesta» y luego sobrecupo
         self.client.post(reverse("citas:accion", args=[cita.pk, "respuesta"]), {"respuesta": "sin_respuesta"})
         self.client.post(reverse("citas:agendar"), {**datos, "paciente": self.p2.pk, "tipo": "sobrecupo"})
@@ -277,3 +278,51 @@ class CitasVistasTests(CitasBase):
     def test_administracion_no_agenda(self):
         self.client.force_login(self.admin)
         self.assertEqual(self.client.get(reverse("citas:agendar")).status_code, 403)
+
+
+class PoliclinicoYRespuestaTests(CitasBase):
+    """Cada TENS opera solo en su policlínico; la respuesta del paciente se registra sola y la TENS puede cambiarla."""
+
+    def test_tens_de_otro_policlinico_no_agenda_ni_ve_las_citas(self):
+        otra = usuario("otra_tens", roles.TENS)
+        Policlinico.objects.create(nombre="Policlínico Otro", usuario_tens=otra)
+        with self.assertRaises(PermissionDenied):
+            self.servicio.agendar(self.p1, self.cupo, otra)
+        cita = self.agendar(self.p1)
+        self.client.force_login(otra)
+        self.assertEqual(self.client.get(reverse("citas:detalle", args=[cita.pk])).status_code, 404)
+        self.client.post(reverse("citas:accion", args=[cita.pk, "cancelar"]))
+        cita.refresh_from_db()
+        self.assertEqual(cita.estado, Estado.AGENDADA)
+
+    def test_respuesta_del_paciente_queda_registrada_automaticamente(self):
+        cita = self.agendar(self.p1)
+        self.client.post(reverse("portal:accion", args=[cita.token, "confirmar"]))
+        cita.refresh_from_db()
+        self.assertEqual((cita.estado, cita.respuesta_origen), (Estado.CONFIRMADA, "paciente"))
+
+    def test_tens_cambia_la_respuesta(self):
+        cita = self.agendar(self.p1)
+        self.confirmacion.registrar_confirmacion(cita, por_paciente=True)
+        cita = self.confirmacion.registrar_respuesta(cita, "sin_respuesta", self.tens)
+        self.assertEqual((cita.estado, cita.respuesta_origen), (Estado.SIN_RESPUESTA, "tens"))
+        cita = self.confirmacion.registrar_respuesta(cita, "confirmar", self.tens)
+        self.assertEqual(cita.estado, Estado.CONFIRMADA)
+        self.assertEqual(self.confirmacion.registrar_respuesta(cita, "confirmar", self.tens).estado, Estado.CONFIRMADA)
+
+    def test_aviso_enviado_por_correo_aunque_falle_whatsapp(self):
+        self.p1.celular = "+56 2 2222 2222"
+        self.p1.correo = "paciente@correo.cl"
+        self.p1.save()
+        cita = self.agendar(self.p1)
+        self.assertTrue(self.confirmacion.enviar_recordatorio(cita, self.tens))
+        cita = Cita.objects.prefetch_related("mensajes").get(pk=cita.pk)
+        self.assertEqual(cita.estado_aviso, "enviado")
+        canales = set(cita.mensajes.filter(tipo="recordatorio").values_list("canal", flat=True))
+        self.assertEqual(canales, {"whatsapp", "correo"})
+
+    def test_mensaje_de_error_sin_codigos_de_requisito(self):
+        self.agendar(self.p1)
+        with self.assertRaises(CupoNoDisponibleError) as e:
+            self.agendar(self.p2)
+        self.assertNotIn("RN-", str(e.exception))

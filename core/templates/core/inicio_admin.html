@@ -20,18 +20,11 @@
   <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ ind.en_espera }}</div><div class="etiqueta">En lista de espera</div></div></div>
 </div>
 
-{% for f in ind.alertas %}
-<div class="aviso aviso-naranjo mb-3">
-  <strong>{{ f.profesional.nombre }} no tiene horas disponibles y hay {{ f.espera }} paciente{{ f.espera|pluralize }} en lista de espera</strong>
-  <div class="small">Revisa sus horas bloqueadas y libéralas de a poco. <a href="{% url 'agenda:calendario' %}?profesional={{ f.profesional.pk }}">Ir a su calendario</a></div>
-</div>
-{% endfor %}
-
 <h2 class="h4 mt-4">Calendario general · próximos {{ ind.dias }} días</h2>
 <div class="tabla-hd">
   <div class="table-responsive">
   <table class="table">
-    <thead><tr><th>Profesional</th><th>Especialidad</th><th>Cupos ofrecidos</th><th>Con cita</th><th>Bloqueados</th><th>Disponibles</th><th>Lista de espera</th><th></th></tr></thead>
+    <thead><tr><th>Profesional</th><th>Especialidad</th><th>Cupos ofrecidos</th><th>Con cita</th><th>Bloqueados</th><th>Disponibles</th><th title="Pacientes en lista de espera de su especialidad en los policlínicos donde atiende">Lista de espera</th><th></th></tr></thead>
     <tbody>
     {% for f in ind.filas %}
     <tr>

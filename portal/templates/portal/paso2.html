@@ -28,7 +28,7 @@
   </div>
 </div>
 {% empty %}
-<div class="tarjeta tarjeta-cuerpo mb-3 text-gris">No hay profesionales de {{ esp.nombre }} con esos filtros.</div>
+<div class="tarjeta tarjeta-cuerpo mb-3 text-gris">No hay profesionales de {{ esp.nombre }} en el {{ pol.nombre }}.</div>
 {% endfor %}
 
 {% if cupo_sel %}
@@ -44,10 +44,10 @@
 {% if not total_libres %}
 <div class="aviso aviso-naranjo mb-3">
   <strong>No hay horas disponibles por ahora.</strong>
-  <div class="mb-2">Puedes quedar en la lista de espera y la Hermandad te contactará cuando se libere una hora.</div>
+  <div class="mb-2">Puedes quedar en la lista de espera de {{ esp.nombre }} en el {{ pol.nombre }} y la Hermandad te contactará cuando se libere una hora.</div>
   <form method="post">{% csrf_token %}{% for k, v in base.items %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
     <input type="hidden" name="accion" value="espera"><button class="btn btn-primary btn-lg-hd">Anotarme en lista de espera</button></form>
 </div>
 {% endif %}
-<a class="btn btn-gris btn-lg-hd" href="{% url 'portal:inicio' %}">Volver</a>
+<a class="btn btn-gris btn-lg-hd" href="{% url 'portal:inicio' %}?esp={{ esp.pk }}&pol={{ pol.pk }}">Volver</a>
 {% endblock %}

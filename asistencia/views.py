@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -21,25 +22,29 @@ servicio = AsistenciaService()
 def lista(request):
     hoy = timezone.localdate()
     fecha = parse_date(request.GET.get("fecha") or "") or hoy
-    pol = Policlinico.objects.filter(pk=request.GET.get("policlinico") or None).first()
-    prof = Profesional.objects.filter(pk=request.GET.get("profesional") or None).first()
+    pol_tens = roles.policlinico_de(request.user)
+    pol = pol_tens or Policlinico.objects.filter(pk=request.GET.get("policlinico") or None).first()
+    profesionales = Profesional.objects.filter(activo=True)
+    if pol_tens:
+        profesionales = profesionales.filter(agendas__policlinico=pol_tens).distinct()
+    prof = profesionales.filter(pk=request.GET.get("profesional") or None).first()
     q = request.GET.get("q", "")
     citas = list(servicio.citas_del_dia(fecha, pol, prof, q))
     return render(request, "asistencia/lista.html", {
         "fecha": fecha, "hoy": hoy, "anterior": fecha - timedelta(days=1), "siguiente": fecha + timedelta(days=1),
         "citas": citas, "resumen": servicio.resumen(citas), "futuro": fecha > hoy,
-        "policlinicos": Policlinico.objects.filter(activo=True), "profesionales": Profesional.objects.filter(activo=True),
-        "pol": pol, "prof": prof, "q": q,
+        "policlinicos": Policlinico.objects.filter(activo=True), "profesionales": profesionales,
+        "pol": pol, "pol_tens": pol_tens, "prof": prof, "q": q,
     })
 
 
 @roles.rol_requerido(roles.TENS)
 @require_POST
 def registrar(request, pk):
-    cita = get_object_or_404(Cita, pk=pk)
+    cita = get_object_or_404(Cita.objects.select_related("cupo__agenda"), pk=pk)
     try:
         servicio.registrar(cita, request.POST.get("asistio") == "1", request.user)
-    except ReglaNegocioError as e:
+    except (ReglaNegocioError, PermissionDenied) as e:
         messages.error(request, str(e))
     siguiente = request.POST.get("next")
     if siguiente and url_has_allowed_host_and_scheme(siguiente, {request.get_host()}):

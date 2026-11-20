@@ -14,6 +14,7 @@ from datetime import date, datetime, time, timedelta
 from django.contrib.auth.models import Group, User
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.db.models import ProtectedError
 from django.utils import timezone
 
 from agenda.models import Agenda, Cupo
@@ -40,19 +41,22 @@ USUARIOS_DEMO = [
     # username, nombre, apellido, rol, es_superusuario
     ("admin", "Admin", "Sistema", None, True),
     ("administracion", "Carolina", "Muñoz", roles.ADMINISTRACION, False),
-    ("tens", "Javiera", "Rojas", roles.TENS, False),
-    ("profesional", "Andrés", "Soto", roles.PROFESIONAL, False),
 ]
+# Usuarios de versiones anteriores de la demo que ya no corresponden (los profesionales no usan el sistema).
+USUARIOS_OBSOLETOS = ("tens", "profesional")
 
+# nombre, dirección, telemedicina, usuario TENS/TONS (se llama como el policlínico)
 POLICLINICOS_DEMO = [
-    ("Policlínico San Lázaro", "Av. Matucana 1020, Santiago", False),
-    ("Policlínico Santa Rosa", "Santa Rosa 455, Santiago", False),
-    ("Policlínico Los Olivos", "Los Olivos 210, Recoleta", False),
-    ("Policlínico Nuestra Señora del Carmen", "Independencia 1345, Independencia", False),
-    ("Policlínico El Buen Samaritano", "San Pablo 2789, Quinta Normal", False),
-    ("Policlínico Santa Clara", "Av. Ecuador 3890, Estación Central", False),
-    ("Telemedicina", "Atención remota por videollamada", True),
+    ("Policlínico San Lázaro", "Av. Matucana 1020, Santiago", False, "san_lazaro"),
+    ("Policlínico Santa Rosa", "Santa Rosa 455, Santiago", False, "santa_rosa"),
+    ("Policlínico Los Olivos", "Los Olivos 210, Recoleta", False, "los_olivos"),
+    ("Policlínico El Carmen", "Independencia 1345, Independencia", False, "el_carmen"),
+    ("Policlínico Buen Samaritano", "San Pablo 2789, Quinta Normal", False, "buen_samaritano"),
+    ("Policlínico Santa Clara", "Av. Ecuador 3890, Estación Central", False, "santa_clara"),
+    ("Telemedicina", "Atención remota por videollamada", True, "telemedicina"),
 ]
+NOMBRES_ANTERIORES = {"Policlínico Nuestra Señora del Carmen": "Policlínico El Carmen",
+                      "Policlínico El Buen Samaritano": "Policlínico Buen Samaritano"}
 
 # nombre, duración (min), sesiones por tratamiento, permite agendar todas las sesiones
 ESPECIALIDADES_DEMO = [
@@ -64,16 +68,16 @@ ESPECIALIDADES_DEMO = [
     ("Enfermería", 30, 1, False),
 ]
 
-# nombre y título, rut, especialidad, usuario demo
+# nombre y título, rut, especialidad
 PROFESIONALES_DEMO = [
-    ("Dr. Andrés Soto Valenzuela", 13579246, "Medicina General", "profesional"),
-    ("Dra. Daniela Herrera Campos", 14682579, "Medicina General", None),
-    ("Klgo. Felipe Navarro Ibáñez", 15793680, "Kinesiología", None),
-    ("Klga. Camila Fuentes Mora", 16127394, "Kinesiología", None),
-    ("Ps. Constanza Vidal Riquelme", 16804791, "Psicología", None),
-    ("Flgo. Ignacio Paredes Molina", 17915802, "Fonoaudiología", None),
-    ("Nut. Fernanda Lagos Espinoza", 12468013, "Nutrición", None),
-    ("Enf. Marta Ibáñez Toro", 11357924, "Enfermería", None),
+    ("Dr. Andrés Soto Valenzuela", 13579246, "Medicina General"),
+    ("Dra. Daniela Herrera Campos", 14682579, "Medicina General"),
+    ("Klgo. Felipe Navarro Ibáñez", 15793680, "Kinesiología"),
+    ("Klga. Camila Fuentes Mora", 16127394, "Kinesiología"),
+    ("Ps. Constanza Vidal Riquelme", 16804791, "Psicología"),
+    ("Flgo. Ignacio Paredes Molina", 17915802, "Fonoaudiología"),
+    ("Nut. Fernanda Lagos Espinoza", 12468013, "Nutrición"),
+    ("Enf. Marta Ibáñez Toro", 11357924, "Enfermería"),
 ]
 
 # profesional (índice), policlínico (índice), día (0=lunes), desde, hasta
@@ -103,7 +107,7 @@ PACIENTES_DEMO = [
     ("Jean Pierre Louis", 26345678, date(1990, 2, 19), "M", "Haitiana", "+56910101010", "", "Esperanza 34, Estación Central", False),
     ("Sofía Antonia Bravo Leiva", 23456789, date(2010, 6, 1), "F", "Chilena", "+56912121212", "", "Huérfanos 3000, Santiago", True),
     # celular fijo (no es móvil): su aviso por WhatsApp falla, para mostrar «Reintentar aviso»
-    ("Héctor Manuel Salinas Cortés", 8765432, date(1962, 10, 8), "M", "Chilena", "+56 2 2345 6789", "hsalinas@demo.cl", "Catedral 2500, Santiago", True),
+    ("Héctor Manuel Salinas Cortés", 8765432, date(1962, 10, 8), "M", "Chilena", "+56 2 2345 6789", "", "Catedral 2500, Santiago", True),
     ("Joaquín Andrés Molina Soto", 22456789, date(2016, 6, 9), "M", "Chilena", "+56987654321", "", "Las Acacias 450, Recoleta", False),
 ]
 
@@ -147,14 +151,25 @@ class Command(BaseCommand):
         usuarios = self.crear_roles_y_usuarios()
         self.cargar_dominio(usuarios)
         self.stdout.write(self.style.SUCCESS("Datos de demostración cargados."))
-        self.stdout.write("Usuarios (contraseña '%s'): %s" % (CLAVE_DEMO, ", ".join(u[0] for u in USUARIOS_DEMO)))
+        nombres = [u[0] for u in USUARIOS_DEMO] + [p[3] for p in POLICLINICOS_DEMO]
+        self.stdout.write("Usuarios (contraseña '%s'): %s" % (CLAVE_DEMO, ", ".join(nombres)))
 
     # ------------------------------------------------------------------ roles
     def crear_roles_y_usuarios(self) -> dict[str, User]:
         for nombre in roles.TODOS_LOS_ROLES:
             Group.objects.get_or_create(name=nombre)
+        Group.objects.filter(name="Profesional").delete()
+        for viejo in User.objects.filter(username__in=USUARIOS_OBSOLETOS, is_superuser=False):
+            try:
+                viejo.delete()
+            except ProtectedError:  # tiene citas registradas a su nombre: se desactiva
+                viejo.groups.clear()
+                viejo.is_active = False
+                viejo.save()
         usuarios = {}
-        for username, nombre, apellido, rol, es_super in USUARIOS_DEMO:
+        tens = [(u, "TENS/TONS", nombre.replace("Policlínico ", ""), roles.TENS, False)
+                for nombre, _, _, u in POLICLINICOS_DEMO]
+        for username, nombre, apellido, rol, es_super in USUARIOS_DEMO + tens:
             u, creado = User.objects.get_or_create(
                 username=username, defaults={"first_name": nombre, "last_name": apellido, "email": f"{username}@demo.local"})
             u.is_superuser = u.is_staff = es_super
@@ -187,15 +202,20 @@ class Command(BaseCommand):
 
     def cargar_dominio(self, usuarios):
         self.hoy = timezone.localdate()
-        self.cargar_pacientes(usuarios["tens"])
+        tens_central = usuarios["san_lazaro"]
+        self.cargar_pacientes(tens_central)
         self.cargar_agendas(usuarios)
         if Cita.objects.exists():
             self.stdout.write("  Citas: ya existen, no se modifican (use --reset para recrearlas).")
             return
-        self.cargar_historial(usuarios["tens"])
-        self.cargar_citas_proximas(usuarios["tens"])
-        self.cargar_lista_espera(usuarios["tens"])
-        self.cargar_documentos(usuarios["tens"])
+        self.cargar_historial()
+        self.cargar_citas_proximas()
+        self.cargar_lista_espera()
+        self.cargar_documentos(tens_central)
+
+    def tens_de(self, cupo) -> User:
+        """Usuario TENS/TONS del policlínico del cupo (cada TENS agenda solo en su policlínico)."""
+        return self.tens_por_pol[cupo.agenda.policlinico_id]
 
     def cargar_pacientes(self, tens):
         for nombre, cuerpo, nac, sexo, nacionalidad, celular, correo, direccion, cesfam in PACIENTES_DEMO:
@@ -228,14 +248,21 @@ class Command(BaseCommand):
         self.stdout.write(f"  Pacientes: {Paciente.objects.count()}")
 
     def cargar_agendas(self, usuarios):
-        polis = [Policlinico.objects.update_or_create(nombre=n, defaults={"direccion": d, "es_telemedicina": t})[0]
-                 for n, d, t in POLICLINICOS_DEMO]
+        for anterior, nuevo in NOMBRES_ANTERIORES.items():
+            if not Policlinico.objects.filter(nombre=nuevo).exists():
+                Policlinico.objects.filter(nombre=anterior).update(nombre=nuevo)
+        polis = []
+        for n, d, t, username in POLICLINICOS_DEMO:
+            Policlinico.objects.filter(usuario_tens=usuarios[username]).exclude(nombre=n).update(usuario_tens=None)
+            polis.append(Policlinico.objects.update_or_create(nombre=n, defaults={
+                "direccion": d, "es_telemedicina": t, "usuario_tens": usuarios[username]})[0])
+        self.tens_por_pol = {p.pk: p.usuario_tens for p in polis}
         esps = {n: Especialidad.objects.update_or_create(nombre=n, defaults={
             "duracion_cupo_min": dur, "sesiones_por_tratamiento": ses, "permite_agendar_todas_sesiones": todas})[0]
             for n, dur, ses, todas in ESPECIALIDADES_DEMO}
         profs = [Profesional.objects.update_or_create(rut=rut(cuerpo), defaults={
-            "nombre": nombre, "especialidad": esps[esp], "usuario": usuarios.get(username)})[0]
-            for nombre, cuerpo, esp, username in PROFESIONALES_DEMO]
+            "nombre": nombre, "especialidad": esps[esp]})[0]
+            for nombre, cuerpo, esp in PROFESIONALES_DEMO]
         servicio = AgendaService()
         inicio_hist = self.hoy - timedelta(weeks=SEMANAS_HISTORIA, days=self.hoy.weekday())
         n_cupos = 0
@@ -252,7 +279,7 @@ class Command(BaseCommand):
                     n_cupos += creado
                 d += timedelta(weeks=1)
             n_cupos += servicio.generar_cupos(agenda, self.hoy, None, usuarios["administracion"])
-        # Enfermería: la profesional está con licencia → todas sus horas futuras bloqueadas (alerta en Inicio)
+        # Enfermería: la profesional está con licencia → todas sus horas futuras bloqueadas
         Cupo.objects.filter(agenda__profesional=profs[7], fecha__gte=self.hoy).update(
             bloqueado=True, motivo_bloqueo="Licencia médica")
         self.profs, self.polis, self.esps = profs, polis, esps
@@ -260,12 +287,13 @@ class Command(BaseCommand):
                           f"Bloques semanales: {Agenda.objects.count()} · Cupos nuevos: {n_cupos}")
 
     # ------------------------------------------------------------- historial
-    def cargar_historial(self, tens):
+    def cargar_historial(self):
         """Citas pasadas con asistencia registrada (para reportes)."""
         pacientes = list(Paciente.objects.all())
         ocupado = set()
         citas = []
         for cupo in Cupo.objects.filter(fecha__lt=self.hoy).select_related("agenda"):
+            tens = self.tens_de(cupo)
             if self.rnd.random() > .62:
                 continue
             for _ in range(5):
@@ -278,18 +306,19 @@ class Command(BaseCommand):
             creada = timezone.make_aware(datetime.combine(cupo.fecha - timedelta(days=self.rnd.randint(3, 20)), time(10)))
             citas.append(Cita(cupo=cupo, paciente=p, estado=estado, creada_por=tens, creada_en=creada,
                               canal=self.rnd.choice(["presencial", "telefono", "telefono", "whatsapp", "web"]),
-                              recordatorio_enviado_en=creada + timedelta(days=1)))
+                              recordatorio_enviado_en=creada + timedelta(days=1),
+                              respuesta_origen="" if estado == "sin_respuesta" else self.rnd.choice(["paciente", "tens"])))
         Cita.objects.bulk_create(citas)
         asistencias = []
-        for c in Cita.objects.filter(cupo__fecha__lt=self.hoy).exclude(estado="cancelada").select_related("cupo"):
+        for c in Cita.objects.filter(cupo__fecha__lt=self.hoy).exclude(estado="cancelada").select_related("cupo__agenda"):
             prob = .93 if c.estado == "confirmada" else .55
-            asistencias.append(Asistencia(cita=c, asistio=self.rnd.random() < prob, registrada_por=tens,
+            asistencias.append(Asistencia(cita=c, asistio=self.rnd.random() < prob, registrada_por=self.tens_de(c.cupo),
                                           registrada_en=timezone.make_aware(datetime.combine(c.cupo.fecha, time(18)))))
         Asistencia.objects.bulk_create(asistencias)
         self.stdout.write(f"  Historial: {len(citas)} citas pasadas · {len(asistencias)} asistencias registradas")
 
     # ------------------------------------------------------- próximas citas
-    def cargar_citas_proximas(self, tens):
+    def cargar_citas_proximas(self):
         repo = CitaRepositoryPostgres()
         ag = AgendamientoService(repo)
         conf = ConfirmacionService(repo, agendamiento=ag)
@@ -305,8 +334,10 @@ class Command(BaseCommand):
         # --- Hoy: citas para registrar asistencia (directo en la BD, aunque la hora ya haya pasado)
         fijos = {rut(x[1]) for x in PACIENTES_DEMO}
         otros = [p for p in P.values() if p.rut not in fijos]
-        hoy_cupos = list(Cupo.objects.filter(fecha=self.hoy, bloqueado=False).order_by("hora_inicio")[:7])
+        hoy_cupos = list(Cupo.objects.filter(fecha=self.hoy, bloqueado=False).select_related("agenda")
+                         .order_by("hora_inicio")[:7])
         for i, cupo in enumerate(hoy_cupos):
+            tens = self.tens_de(cupo)
             estado = ["confirmada", "confirmada", "sin_respuesta", "confirmada", "cancelada", "confirmada", "agendada"][i]
             c = Cita.objects.create(cupo=cupo, paciente=otros[i], estado=estado, creada_por=tens, canal="telefono",
                                     recordatorio_enviado_en=timezone.now() - timedelta(days=2))
@@ -315,10 +346,20 @@ class Command(BaseCommand):
             elif i == 1:
                 Asistencia.objects.create(cita=c, asistio=False, registrada_por=tens)
 
-        # --- Mañana (próximo día hábil): avisos en todos los estados
-        horas = libres(prof_kine, manana)
+        # --- Mañana (próximo día hábil): avisos en todos los estados. Se usa la kinesióloga si
+        # atiende ese día; si no, el primer profesional con horas suficientes (la demo funciona
+        # cualquier día de la semana).
+        horas = []
+        for prof in [prof_kine] + [p for p in self.profs if p != prof_kine]:
+            horas = [c for c in libres(prof, manana)]
+            if len(horas) >= 6:
+                horas = [c for c in horas if c.agenda.policlinico_id == horas[0].agenda.policlinico_id]
+            if len(horas) >= 6:
+                break
+        self.tens_avisos = None
         if len(horas) >= 6:
-            c1 = ag.agendar(pac(8765432), horas[0], tens, canal="telefono").citas[0]  # aviso falla (celular fijo)
+            tens = self.tens_avisos = self.tens_de(horas[0])
+            c1 = ag.agendar(pac(8765432), horas[0], tens, canal="telefono").citas[0]  # aviso falla (sin móvil ni correo)
             conf.enviar_recordatorio(c1, tens)
             c2 = ag.agendar(pac(9876543), horas[1], tens, canal="presencial").citas[0]
             conf.enviar_recordatorio(c2, tens)
@@ -337,7 +378,8 @@ class Command(BaseCommand):
             for fecha in (manana, proximo_habil(manana)):
                 for cupo in libres(prof, fecha, 2):
                     try:
-                        ag.agendar(self.rnd.choice(otros[10:]), cupo, tens, canal=self.rnd.choice(["telefono", "presencial"]))
+                        ag.agendar(self.rnd.choice(otros[10:]), cupo, self.tens_de(cupo),
+                                   canal=self.rnd.choice(["telefono", "presencial"]))
                     except Exception:  # choque de horario del paciente aleatorio: se omite
                         pass
 
@@ -353,31 +395,38 @@ class Command(BaseCommand):
             fut = list(repo.cupos_libres({"desde": manana + timedelta(days=1), "hasta": manana + timedelta(days=10),
                                           "profesional": prof})[:1])
             if fut:
-                ag.agendar(pac(cuerpo), fut[0], tens, sesiones=n, observaciones="Tratamiento completo")
+                ag.agendar(pac(cuerpo), fut[0], self.tens_de(fut[0]), sesiones=n, observaciones="Tratamiento completo")
 
         # --- Una cancelada por el paciente
         fut = list(repo.cupos_libres({"desde": manana + timedelta(days=3), "hasta": manana + timedelta(days=12),
                                       "profesional": self.profs[0]})[:1])
         if fut:
-            c = ag.agendar(pac(6543219), fut[0], tens).citas[0]
+            c = ag.agendar(pac(6543219), fut[0], self.tens_de(fut[0])).citas[0]
             conf.registrar_cancelacion(c, motivo="El paciente avisó que estará fuera de Santiago", por_paciente=True)
         self.stdout.write(f"  Próximas citas: {Cita.objects.filter(cupo__fecha__gte=self.hoy).count()} · "
-                          f"Avisos simulados: {MensajeEnviado.objects.count()} · Próximo día hábil: {manana:%d/%m/%Y}")
+                          f"Avisos: {MensajeEnviado.objects.count()} · Próximo día hábil: {manana:%d/%m/%Y}")
+        if self.tens_avisos:
+            self.stdout.write(f"  Avisos del próximo día hábil en todos los estados: entrar como "
+                              f"«{self.tens_avisos.username}» ({self.tens_avisos.policlinico_tens.nombre})")
 
-    def cargar_lista_espera(self, tens):
-        enf, kine = self.esps["Enfermería"], self.esps["Kinesiología"]
-        marta = self.profs[7]
+    def cargar_lista_espera(self):
+        """Listas de espera por especialidad y policlínico (nunca por profesional)."""
+        enf, kine, mg = self.esps["Enfermería"], self.esps["Kinesiología"], self.esps["Medicina General"]
+        santa_rosa, san_lazaro, los_olivos = self.polis[1], self.polis[0], self.polis[2]
         fijos = {rut(x[1]) for x in PACIENTES_DEMO}
         otros = [p for p in Paciente.objects.order_by("pk") if p.rut not in fijos][20:]
         filas = [
-            (otros[0], enf, marta, "en_espera", 15), (Paciente.objects.get(rut=rut(22456789)), enf, marta, "contactado", 12),
-            (otros[1], enf, marta, "en_espera", 9), (otros[2], enf, marta, "sin_contacto", 8),
-            (Paciente.objects.get(rut=rut(12345670)), kine, None, "en_espera", 6), (otros[3], enf, marta, "en_espera", 4),
-            (otros[4], self.esps["Medicina General"], None, "en_espera", 3), (otros[5], kine, None, "agendado", 2),
+            (otros[0], enf, santa_rosa, "en_espera", 15),
+            (Paciente.objects.get(rut=rut(22456789)), enf, santa_rosa, "contactado", 12),
+            (otros[1], enf, santa_rosa, "en_espera", 9), (otros[2], enf, santa_rosa, "sin_contacto", 8),
+            (Paciente.objects.get(rut=rut(12345670)), kine, san_lazaro, "en_espera", 6),
+            (otros[3], enf, los_olivos, "en_espera", 4),
+            (otros[4], mg, san_lazaro, "en_espera", 3), (otros[5], kine, san_lazaro, "agendado", 2),
         ]
-        for i, (p, esp, prof, estado, dias) in enumerate(filas, 1):
+        for i, (p, esp, pol, estado, dias) in enumerate(filas, 1):
             SolicitudEspera.objects.create(
-                paciente=p, especialidad=esp, profesional=prof, estado=estado, orden=i, creada_por=tens,
+                paciente=p, especialidad=esp, policlinico=pol, estado=estado, orden=i,
+                creada_por=None if i % 3 == 0 else self.tens_por_pol[pol.pk],
                 canal="web" if i % 3 == 0 else "telefono", creada_en=timezone.now() - timedelta(days=dias),
                 resultado_contacto="no_contesta" if estado == "sin_contacto" else "sin_resultado")
         self.stdout.write(f"  Lista de espera: {len(filas)} pacientes")

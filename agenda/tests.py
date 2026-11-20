@@ -26,7 +26,7 @@ class AgendaBase(TestCase):
         self.tens = usuario("tens", roles.TENS)
         esp = Especialidad.objects.create(nombre="Medicina General", duracion_cupo_min=30)
         self.prof = Profesional.objects.create(nombre="Dra. Prueba", rut="11111111-1", especialidad=esp)
-        self.pol = Policlinico.objects.create(nombre="Policlínico Prueba")
+        self.pol = Policlinico.objects.create(nombre="Policlínico Prueba", usuario_tens=self.tens)
         self.hoy = timezone.localdate()
         self.servicio = AgendaService()
 

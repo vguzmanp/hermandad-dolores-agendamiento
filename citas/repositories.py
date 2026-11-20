@@ -48,7 +48,7 @@ class ICitaRepository(ABC):
         """RN-07: solo si la cita normal del cupo está 'sin_respuesta' y no hay otro sobrecupo."""
 
     @abstractmethod
-    def cancelar(self, cita_id: int, usuario, motivo: str) -> Cita:
+    def cancelar(self, cita_id: int, usuario, motivo: str, origen: str = "") -> Cita:
         """Cancela la cita y libera el cupo."""
 
     @abstractmethod
@@ -156,15 +156,15 @@ class CitaRepositoryPostgres(ICitaRepository):
         try:
             return Cupo.objects.select_for_update().get(pk=cupo_id)
         except Cupo.DoesNotExist:
-            raise CupoNoDisponibleError("El cupo no existe.", "RN-01")
+            raise CupoNoDisponibleError("El cupo no existe.")
 
     @staticmethod
     def _validar_cupo_utilizable(cupo: Cupo) -> None:
         if cupo.bloqueado:
-            raise CupoNoDisponibleError("El cupo está bloqueado por Administración.", "RN-01")
+            raise CupoNoDisponibleError("La hora está bloqueada.")
         ahora = timezone.localtime()
         if cupo.fecha < ahora.date() or (cupo.fecha == ahora.date() and cupo.hora_inicio < ahora.time()):
-            raise CupoNoDisponibleError("No se puede agendar en un horario que ya pasó.", "RN-01")
+            raise CupoNoDisponibleError("No se puede agendar en un horario que ya pasó.")
 
     @staticmethod
     def _validar_paciente_sin_choque(paciente: Paciente, cupo: Cupo) -> None:
@@ -219,7 +219,7 @@ class CitaRepositoryPostgres(ICitaRepository):
             return self._crear(cupo=cupo, paciente=paciente, creada_por=usuario, es_sobrecupo=True,
                                cita_original=original, **datos)
 
-    def cancelar(self, cita_id: int, usuario, motivo: str) -> Cita:
+    def cancelar(self, cita_id: int, usuario, motivo: str, origen: str = "") -> Cita:
         """
         Cancela la cita: deja de ocupar el cupo, que queda libre por completo.
         Si se cancela la cita normal y existía un sobrecupo, el sobrecupo pasa a
@@ -235,6 +235,9 @@ class CitaRepositoryPostgres(ICitaRepository):
             cita.cancelada_en = timezone.now()
             cita.cancelada_por = usuario
             cita.motivo_cancelacion = motivo
+            if origen:
+                cita.respuesta_origen = origen
+                cita.respuesta_en = cita.cancelada_en
             cita.save()
             cita.sobrecupo_promovido = None
             if not cita.es_sobrecupo:

@@ -50,7 +50,7 @@ class PacienteForm(BootstrapFormMixin, forms.ModelForm):
             return self.instance.rut
         rut = validar_rut(self.cleaned_data["rut"])
         if PacienteRepository().existe_rut(rut):
-            raise forms.ValidationError("Ya existe un paciente con este RUT (RF-02). Búsquelo a la derecha.")
+            raise forms.ValidationError("Ya existe un paciente con este RUT. Búsquelo a la derecha.")
         return rut
 
     def clean_fecha_nacimiento(self):

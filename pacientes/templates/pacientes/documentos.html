@@ -26,7 +26,7 @@
   <a href="{% url 'documentos:lista' %}">Cambiar paciente</a>
 </div>
 {% if not paciente.inscrito_cesfam %}
-<div class="aviso aviso-naranjo mb-4"><strong>Falta la inscripción al CESFAM</strong><div class="small">Avisa al paciente: es indispensable para una eventual derivación (RN-05).</div></div>
+<div class="aviso aviso-naranjo mb-4"><strong>Falta la inscripción al CESFAM</strong><div class="small">Avisa al paciente: es indispensable para una eventual derivación.</div></div>
 {% endif %}
 <div class="row g-4">
   <div class="col-lg-5">

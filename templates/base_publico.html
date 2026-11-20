@@ -9,10 +9,11 @@
 </head>
 <body>
 <header class="hd-header hd-header-publico">
-  <a class="marca" href="{% block url_marca %}{% url 'portal:inicio' %}{% endblock %}">
+  <a class="marca" href="{% block url_marca %}/{% endblock %}">
     <span><span class="nombre d-block">Hermandad de Dolores</span><span class="sub">{% block subtitulo_cabecera %}Reserva de hora · sin cuenta ni clave{% endblock %}</span></span>
   </a>
-  <div class="derecha"><span class="texto-largo">{% block derecha_cabecera %}También por WhatsApp, teléfono o en persona{% endblock %}</span></div>
+  <div class="derecha d-flex align-items-center gap-3"><span class="texto-largo">{% block derecha_cabecera %}También por WhatsApp, teléfono o en persona{% endblock %}</span>
+    {% block volver_inicio %}<a class="btn btn-blanco btn-sm" href="/">← Volver al inicio</a>{% endblock %}</div>
 </header>
 <div class="contenedor-publico">
   {% include "includes/mensajes.html" %}

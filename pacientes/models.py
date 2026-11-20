@@ -16,7 +16,7 @@ class Paciente(models.Model):
     nombre = models.CharField("nombre completo", max_length=150)
     rut = models.CharField("RUT", max_length=12, unique=True, help_text="Formato 12345678-K")
     celular = models.CharField(max_length=20, help_text="Ej: +56912345678")
-    correo = models.EmailField("correo electrónico", blank=True, help_text="Opcional (RN-03)")
+    correo = models.EmailField("correo electrónico", blank=True, help_text="Opcional")
     direccion = models.CharField("dirección", max_length=200)
     fecha_nacimiento = models.DateField("fecha de nacimiento")
     sexo = models.CharField(max_length=1, choices=Sexo.choices)
@@ -66,9 +66,9 @@ class Paciente(models.Model):
     def advertencias(self) -> list[str]:
         avisos = []
         if not self.inscrito_cesfam:
-            avisos.append("RN-05: El paciente no registra inscripción en CESFAM. Solicite el comprobante.")
+            avisos.append("El paciente no registra inscripción en CESFAM. Solicite el comprobante.")
         if self.necesita_responsable and not hasattr(self, "adulto_responsable"):
-            avisos.append("RN-04: El paciente requiere un adulto responsable y no tiene uno registrado.")
+            avisos.append("El paciente requiere un adulto responsable y no tiene uno registrado.")
         return avisos
 
 

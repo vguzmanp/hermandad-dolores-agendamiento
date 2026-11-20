@@ -43,7 +43,7 @@ class AgendarForm(BootstrapFormMixin, forms.Form):
             self.fields["sesiones"].max_value = max_sesiones
             self.fields["sesiones"].widget.attrs["max"] = max_sesiones
             self.fields["sesiones"].help_text = (
-                f"RN-01: esta especialidad permite agendar hasta {max_sesiones} sesiones de una vez "
+                f"Esta especialidad permite agendar hasta {max_sesiones} sesiones de una vez "
                 f"(mismo profesional, policlínico y hora, en las fechas siguientes)."
             )
 
@@ -51,7 +51,7 @@ class AgendarForm(BootstrapFormMixin, forms.Form):
         rut = validar_rut(self.cleaned_data["rut"])
         self.paciente = PacienteRepository().buscar_por_rut(rut)
         if self.paciente is None:
-            raise forms.ValidationError("No existe un paciente con ese RUT. Regístrelo primero (RF-02).")
+            raise forms.ValidationError("No existe un paciente con ese RUT. Regístrelo primero.")
         return rut
 
 
@@ -61,3 +61,10 @@ class FiltroCitasForm(BootstrapFormMixin, forms.Form):
     profesional = forms.ModelChoiceField(Profesional.objects.all(), required=False, empty_label="Todos")
     policlinico = forms.ModelChoiceField(Policlinico.objects.all(), required=False, empty_label="Todos", label="Policlínico")
     estado = forms.ChoiceField(choices=[("", "Todos")] + list(Cita.Estado.choices), required=False)
+
+    def __init__(self, *args, policlinico=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if policlinico:  # la TENS/TONS solo ve su policlínico
+            del self.fields["policlinico"]
+            self.fields["profesional"].queryset = Profesional.objects.filter(
+                agendas__policlinico=policlinico).distinct()

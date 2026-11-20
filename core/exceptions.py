@@ -13,7 +13,7 @@ class ReglaNegocioError(Exception):
             self.codigo = codigo
 
     def __str__(self):
-        return f"[{self.codigo}] {self.mensaje}"
+        return self.mensaje
 
 
 class CupoNoDisponibleError(ReglaNegocioError):

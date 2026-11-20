@@ -6,8 +6,8 @@
         {% csrf_token %}
         <input type="hidden" name="next" value="{{ request.get_full_path }}">
         <div class="modal-body">
-          <h2 class="h4 mb-1">Registrar respuesta</h2>
-          <p class="text-gris mb-3"><span id="detalleRespuesta"></span>. Úsalo cuando el paciente respondió por teléfono o en persona, o no respondió.</p>
+          <h2 class="h4 mb-1">Respuesta del paciente</h2>
+          <p class="text-gris mb-3"><span id="detalleRespuesta"></span>. Si el paciente respondió el aviso, su respuesta ya quedó registrada; aquí puedes registrarla o cambiarla cuando respondió por teléfono o en persona, o no respondió.</p>
           <label class="opcion-radio"><input class="form-check-input m-0" type="radio" name="respuesta" value="confirmar" checked> Confirmó la cita</label>
           <label class="opcion-radio"><input class="form-check-input m-0" type="radio" name="respuesta" value="cancelar"> Canceló la cita</label>
           <label class="opcion-radio"><input class="form-check-input m-0" type="radio" name="respuesta" value="sin_respuesta"> Sin respuesta</label>
@@ -25,5 +25,7 @@ document.getElementById("modalRespuesta").addEventListener("show.bs.modal", e =>
   const b = e.relatedTarget;
   document.getElementById("formRespuesta").action = b.dataset.url;
   document.getElementById("detalleRespuesta").textContent = b.dataset.detalle;
+  const actual = {confirmada: "confirmar", sin_respuesta: "sin_respuesta"}[b.dataset.estado] || "confirmar";
+  document.querySelectorAll("#formRespuesta input[name=respuesta]").forEach(r => { r.checked = r.value === actual; });
 });
 </script>

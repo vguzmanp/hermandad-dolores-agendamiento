@@ -3,11 +3,14 @@ from django.db import models
 from django.utils import timezone
 
 from pacientes.models import Paciente
-from profesionales.models import Especialidad, Policlinico, Profesional
+from profesionales.models import Especialidad, Policlinico
 
 
 class SolicitudEspera(models.Model):
-    """RN-06: lista de espera por orden de llegada (las TENS pueden subir a un paciente)."""
+    """
+    Lista de espera por orden de llegada para una especialidad en un policlínico
+    (nunca para un profesional en particular). Las TENS pueden subir a un paciente.
+    """
 
     class Estado(models.TextChoices):
         EN_ESPERA = "en_espera", "En espera"
@@ -28,9 +31,8 @@ class SolicitudEspera(models.Model):
 
     paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE, related_name="solicitudes_espera")
     especialidad = models.ForeignKey(Especialidad, on_delete=models.PROTECT, related_name="solicitudes_espera")
-    profesional = models.ForeignKey(Profesional, null=True, blank=True, on_delete=models.SET_NULL,
-                                    related_name="solicitudes_espera", help_text="Vacío = cualquier profesional.")
-    policlinico = models.ForeignKey(Policlinico, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    policlinico = models.ForeignKey(Policlinico, on_delete=models.PROTECT, related_name="solicitudes_espera",
+                                    verbose_name="policlínico")
     estado = models.CharField(max_length=15, choices=Estado.choices, default=Estado.EN_ESPERA)
     resultado_contacto = models.CharField("resultado del contacto", max_length=20, choices=Resultado.choices,
                                           default=Resultado.SIN_RESULTADO)
@@ -48,7 +50,7 @@ class SolicitudEspera(models.Model):
         verbose_name_plural = "lista de espera"
 
     def __str__(self):
-        return f"{self.paciente.nombre} · {self.especialidad}"
+        return f"{self.paciente.nombre} · {self.especialidad} · {self.policlinico}"
 
     @property
     def activa(self) -> bool:

@@ -15,13 +15,10 @@ MENU_ADMIN = [
     ("profesionales", "Profesionales", "/profesionales/", "profesionales", ("/profesionales/", "/agenda/")),
     ("espera", "Lista de espera", "/lista-espera/", "espera", ("/lista-espera/",)),
     ("reportes", "Reportes", "/reportes/", "reportes", ("/reportes/",)),
+    ("rep_pacientes", "Reporte de pacientes", "/reportes/?tab=pacientes", "pacientes", ("/reportes/pacientes/",)),
     ("documentos", "Documentos", "/documentos/", "documentos", ("/documentos/",)),
 ]
-MENU_PROFESIONAL = [
-    ("inicio", "Inicio", "/", "inicio", ()),
-    ("mis_citas", "Mis citas", "/citas/lista/", "citas", ("/citas/",)),
-    ("reportes", "Estadísticas", "/reportes/", "reportes", ("/reportes/",)),
-]
+
 EXTRA_TENS = [("mensajes", "Avisos enviados", "/citas/mensajes/", "mensajes", ("/citas/mensajes/",))]
 EXTRA_ADMIN = [("catalogo", "Especialidades y policlínicos", "/profesionales/catalogo/", "config", ("/profesionales/catalogo/",))]
 
@@ -34,8 +31,6 @@ def _menu(usuario):
     if r.tiene_rol(usuario, r.ADMINISTRACION):
         principal += MENU_ADMIN
         extra += EXTRA_ADMIN
-    if r.tiene_rol(usuario, r.PROFESIONAL) and not principal:
-        principal += MENU_PROFESIONAL
     vistos, items = set(), []
     for item in principal + [None] + extra:
         if item is None:
@@ -69,7 +64,6 @@ def roles(request):
     ctx = {
         "es_admin": r.tiene_rol(u, r.ADMINISTRACION),
         "es_tens": r.tiene_rol(u, r.TENS),
-        "es_profesional": r.tiene_rol(u, r.PROFESIONAL),
     }
     if u is None or not u.is_authenticated:
         return ctx
@@ -78,12 +72,17 @@ def roles(request):
         None if it is None else {"clave": it[0], "etiqueta": it[1], "url": it[2], "icono": it[3]} for it in items
     ]
     ctx["menu_activo"] = _activo(items, request.path)
-    if ctx["es_tens"]:
-        ctx["rol_visible"] = r.TENS
+    if u.is_superuser:
+        ctx["rol_visible"] = "Administrador del sistema"
     elif ctx["es_admin"]:
         ctx["rol_visible"] = "Administración"
     else:
-        ctx["rol_visible"] = "Profesional"
+        try:
+            pol = r.policlinico_de(u)
+        except Exception:  # pragma: no cover - TENS sin policlínico: la vista muestra el error
+            pol = None
+        ctx["policlinico_tens"] = pol
+        ctx["rol_visible"] = f"{r.TENS} · {pol.nombre}" if pol else r.TENS
     try:
         from citas.services import contador_alertas
 
