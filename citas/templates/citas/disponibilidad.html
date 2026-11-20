@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block titulo %}Disponibilidad{% endblock %}
+{% block contenido %}
+<h1 class="h3 mb-1">Disponibilidad y agendamiento</h1>
+<p class="text-muted small">RN-01: solo se agenda sobre cupos disponibles. RN-07: los cupos cuya cita está «sin respuesta» admiten un sobrecupo.</p>
+
+{% if paciente %}
+<div class="alert alert-info py-2">Agendando para <strong>{{ paciente.nombre }}</strong> ({{ paciente.rut_formateado }}).
+  <a href="{% url 'citas:disponibilidad' %}" class="alert-link ms-2">Quitar</a></div>
+{% endif %}
+
+<form class="card shadow-sm mb-4" method="get">
+  <div class="card-body row g-2 align-items-end">
+    {{ form.paciente }}
+    <div class="col-md-3"><label class="form-label small">Especialidad</label>{{ form.especialidad }}</div>
+    <div class="col-md-3"><label class="form-label small">Profesional</label>{{ form.profesional }}</div>
+    <div class="col-md-2"><label class="form-label small">Policlínico</label>{{ form.policlinico }}</div>
+    <div class="col-md-2"><label class="form-label small">Desde</label>{{ form.desde }}</div>
+    <div class="col-md-2"><label class="form-label small">Hasta</label>{{ form.hasta }}{% for e in form.hasta.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</div>
+    <div class="col-12"><button class="btn btn-hd">Buscar cupos</button></div>
+  </div>
+</form>
+
+{% if sobrecupo %}
+<div class="card shadow-sm mb-4 border-warning">
+  <div class="card-header bg-warning-subtle">Cupos con cita «sin respuesta» — admiten <strong>un</strong> sobrecupo ({{ sobrecupo|length }})</div>
+  <div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>Fecha</th><th>Hora</th><th>Profesional</th><th>Especialidad</th><th>Policlínico</th><th>Cita sin respuesta</th><th></th></tr></thead>
+    <tbody>
+    {% for c in sobrecupo %}
+    <tr class="cupo-sobrecupo">
+      <td class="text-nowrap">{{ c.fecha|date:"D d/m/Y" }}</td>
+      <td>{{ c.hora_inicio|time:"H:i" }}</td>
+      <td>{{ c.agenda.profesional.nombre }}</td>
+      <td>{{ c.agenda.profesional.especialidad }}</td>
+      <td>{{ c.agenda.policlinico }}</td>
+      <td class="small">{{ c.cita_normal.paciente.nombre }}</td>
+      <td class="text-end"><a class="btn btn-sm btn-warning" href="{% url 'citas:sobrecupo' c.pk %}{% if paciente %}?paciente={{ paciente.pk }}{% endif %}">Agendar sobrecupo</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
+
+<h2 class="h5">Cupos disponibles <span class="badge text-bg-success">{{ n_libres }}</span></h2>
+{% for fecha, cupos in libres_por_fecha %}
+<div class="card shadow-sm mb-3">
+  <div class="card-header fw-semibold">{{ fecha|date:"l d \d\e F"|capfirst }}</div>
+  <div class="table-responsive"><table class="table table-sm table-hover mb-0">
+    <tbody>
+    {% for c in cupos %}
+    <tr>
+      <td class="text-nowrap" style="width: 8rem">{{ c.hora_inicio|time:"H:i" }}–{{ c.hora_fin|time:"H:i" }}</td>
+      <td>{{ c.agenda.profesional.nombre }}</td>
+      <td>{{ c.agenda.profesional.especialidad }}{% if c.agenda.profesional.especialidad.permite_agendar_todas_sesiones %} <span class="badge text-bg-info" title="Permite agendar todas las sesiones de una vez">{{ c.agenda.profesional.especialidad.sesiones_por_tratamiento }} ses.</span>{% endif %}</td>
+      <td>{% if c.agenda.policlinico.es_telemedicina %}<span class="badge text-bg-info">Telemedicina</span>{% else %}{{ c.agenda.policlinico }}{% endif %}</td>
+      <td class="text-end"><a class="btn btn-sm btn-hd" href="{% url 'citas:agendar' c.pk %}{% if paciente %}?paciente={{ paciente.pk }}{% endif %}">Agendar</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% empty %}
+<div class="alert alert-secondary">No hay cupos disponibles con esos filtros. Pruebe otro rango de fechas o profesional.</div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block titulo %}Recordatorios{% endblock %}
+{% block contenido %}
+<h1 class="h3 mb-1">Recordatorios y confirmaciones</h1>
+<p class="text-muted small">Cada cita se recuerda <em>diasAviso</em> días antes (2 por defecto). La respuesta del paciente se simula con los botones.</p>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>Recordatorios por enviar <span class="badge text-bg-primary">{{ pendientes|length }}</span></span>
+    {% if pendientes %}
+    <form method="post" action="{% url 'citas:enviar_todos' %}">{% csrf_token %}<button class="btn btn-sm btn-hd">Enviar todos</button></form>
+    {% endif %}
+  </div>
+  {% include "citas/_tabla_simple.html" with citas=pendientes vacio="No hay recordatorios pendientes para hoy." %}
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header">Esperando respuesta del paciente <span class="badge text-bg-secondary">{{ esperando|length }}</span></div>
+  {% include "citas/_tabla_simple.html" with citas=esperando vacio="No hay citas esperando respuesta." %}
+</div>
+
+<div class="card shadow-sm border-warning">
+  <div class="card-header bg-warning-subtle">Sin respuesta (admiten sobrecupo) <span class="badge text-bg-warning">{{ sin_respuesta|length }}</span></div>
+  {% include "citas/_tabla_simple.html" with citas=sin_respuesta vacio="No hay citas sin respuesta." sobrecupo=True %}
+</div>
+{% endblock %}

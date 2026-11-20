@@ -1,0 +1,18 @@
+{# Acciones de la TENS sobre una cita. Requiere: c (cita), next (url de retorno opcional). #}
+{% if c.es_vigente %}
+<div class="d-flex flex-wrap gap-1 justify-content-end">
+  {% if c.estado == "agendada" or c.estado == "sin_respuesta" %}
+  <form method="post" action="{% url 'citas:accion' c.pk 'recordatorio' %}">{% csrf_token %}<input type="hidden" name="next" value="{{ next }}">
+    <button class="btn btn-sm btn-outline-primary" title="Enviar recordatorio (simulado)">Recordatorio</button></form>
+  <form method="post" action="{% url 'citas:accion' c.pk 'confirmar' %}">{% csrf_token %}<input type="hidden" name="next" value="{{ next }}">
+    <button class="btn btn-sm btn-success" title="Simular: el paciente responde 1 (confirma)">Paciente confirma</button></form>
+  {% endif %}
+  {% if c.estado == "agendada" %}
+  <form method="post" action="{% url 'citas:accion' c.pk 'sin_respuesta' %}">{% csrf_token %}<input type="hidden" name="next" value="{{ next }}">
+    <button class="btn btn-sm btn-outline-warning" title="Simular: el paciente no responde">No responde</button></form>
+  {% endif %}
+  <form method="post" action="{% url 'citas:accion' c.pk 'cancelar' %}" onsubmit="return confirm('¿Cancelar la cita de {{ c.paciente.nombre|escapejs }}? El cupo quedará liberado.');">{% csrf_token %}<input type="hidden" name="next" value="{{ next }}">
+    <input type="hidden" name="motivo" value="Cancelada por el paciente">
+    <button class="btn btn-sm btn-outline-danger" title="Simular: el paciente responde 2 (cancela)">Paciente cancela</button></form>
+</div>
+{% endif %}

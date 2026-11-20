@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block titulo %}{% if es_sobrecupo %}Agendar sobrecupo{% else %}Agendar cita{% endif %}{% endblock %}
+{% block contenido %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <h1 class="h3 mb-3">{% if es_sobrecupo %}Agendar sobrecupo{% else %}Agendar cita{% endif %}</h1>
+
+    <div class="card shadow-sm mb-3 {% if es_sobrecupo %}border-warning{% endif %}">
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-4">Fecha y hora</dt><dd class="col-sm-8">{{ cupo.fecha|date:"l d \d\e F \d\e Y"|capfirst }}, {{ cupo.hora_inicio|time:"H:i" }}–{{ cupo.hora_fin|time:"H:i" }}</dd>
+          <dt class="col-sm-4">Profesional</dt><dd class="col-sm-8">{{ cupo.agenda.profesional.nombre }} ({{ cupo.agenda.profesional.especialidad }})</dd>
+          <dt class="col-sm-4">Policlínico</dt><dd class="col-sm-8">{{ cupo.agenda.policlinico }}</dd>
+          <dt class="col-sm-4">Estado del cupo</dt><dd class="col-sm-8">{{ cupo.estado_display }}</dd>
+          {% if es_sobrecupo and cupo.cita_normal %}
+          <dt class="col-sm-4">Cita sin respuesta</dt><dd class="col-sm-8">{{ cupo.cita_normal.paciente.nombre }}</dd>
+          {% endif %}
+        </dl>
+        {% if es_sobrecupo %}
+        <div class="alert alert-warning small mt-3 mb-0">RN-07: el sobrecupo se permite porque la cita de este cupo está «sin respuesta». Máximo 2 citas por cupo.
+          Si el paciente original cancela, el sobrecupo pasa a ser la cita del cupo.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card shadow-sm"><div class="card-body">
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="row">
+          <div class="col-md-6">{% include "includes/campo.html" with campo=form.rut %}
+            <div class="form-text mt-n2 mb-3">¿No está registrado? <a href="{% url 'pacientes:buscar_rut' %}" target="_blank">Buscar / registrar paciente</a></div>
+          </div>
+          {% if form.sesiones %}<div class="col-md-6">{% include "includes/campo.html" with campo=form.sesiones %}</div>{% endif %}
+          <div class="col-md-6">{% include "includes/campo.html" with campo=form.dias_aviso %}</div>
+          <div class="col-md-12">{% include "includes/campo.html" with campo=form.observaciones %}</div>
+        </div>
+        <button class="btn {% if es_sobrecupo %}btn-warning{% else %}btn-hd{% endif %}">{% if es_sobrecupo %}Confirmar sobrecupo{% else %}Confirmar agendamiento{% endif %}</button>
+        <a class="btn btn-link" href="{% url 'citas:disponibilidad' %}">Volver a disponibilidad</a>
+      </form>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

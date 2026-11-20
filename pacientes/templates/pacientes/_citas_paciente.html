@@ -1,1 +1,23 @@
-{# Historial de citas: se completa en la etapa 4 (módulo Citas). #}
+<div class="card shadow-sm mt-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>Citas del paciente</span>
+    <span>
+      {% if es_tens %}<a class="btn btn-sm btn-hd" href="{% url 'citas:disponibilidad' %}?paciente={{ paciente.pk }}">+ Agendar cita</a>
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'citas:mensajes' %}?paciente={{ paciente.pk }}">Mensajes</a>{% endif %}
+    </span>
+  </div>
+  <div class="table-responsive"><table class="table table-sm mb-0">
+    <tbody>
+    {% for c in citas %}
+    <tr class="{% if c.estado == 'cancelada' %}text-muted{% endif %}">
+      <td class="text-nowrap">{{ c.cupo.fecha|date:"D d/m/Y" }} {{ c.cupo.hora_inicio|time:"H:i" }}</td>
+      <td class="small">{{ c.cupo.agenda.profesional.nombre }} ({{ c.cupo.agenda.profesional.especialidad }})</td>
+      <td class="small">{{ c.cupo.agenda.policlinico }}</td>
+      <td>{% include "citas/_estado.html" %}</td>
+      <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{% url 'citas:detalle' c.pk %}">Ver</a></td>
+    </tr>
+    {% empty %}<tr><td class="text-center text-muted py-3">El paciente no tiene citas.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>

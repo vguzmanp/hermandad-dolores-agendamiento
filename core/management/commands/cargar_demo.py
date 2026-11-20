@@ -15,6 +15,9 @@ from django.utils import timezone
 
 from agenda.models import Agenda, Cupo
 from agenda.services import AgendaService
+from citas.models import Cita, MensajeEnviado
+from citas.repositories import CitaRepositoryPostgres
+from citas.services import AgendamientoService, ConfirmacionService
 from core import roles
 from pacientes.models import AdultoResponsable, Paciente
 from pacientes.rut import calcular_dv
@@ -141,6 +144,8 @@ class Command(BaseCommand):
 
     # --------------------------------------------------------------- dominio
     def borrar_datos(self):
+        MensajeEnviado.objects.all().delete()
+        Cita.objects.all().delete()
         Cupo.objects.all().delete()
         Agenda.objects.all().delete()
         Profesional.objects.all().delete()
@@ -152,6 +157,7 @@ class Command(BaseCommand):
     def cargar_dominio(self, usuarios):
         self.cargar_pacientes(usuarios["tens"])
         self.cargar_agendas(usuarios)
+        self.cargar_citas(usuarios["tens"])
 
     def cargar_pacientes(self, tens):
         for nombre, cuerpo, nac, sexo, nacionalidad, celular, correo, direccion, cesfam in PACIENTES_DEMO:
@@ -209,3 +215,47 @@ class Command(BaseCommand):
             f"  Policlínicos: {len(polis)} · Especialidades: {len(esps)} · Profesionales: {len(profs)} · "
             f"Agendas: {Agenda.objects.count()} · Cupos nuevos: {n_cupos}"
         )
+
+    def cargar_citas(self, tens):
+        """Citas de ejemplo en todos los estados (solo si aún no hay citas)."""
+        if Cita.objects.exists():
+            self.stdout.write("  Citas: ya existen, no se modifican (use --reset para recrearlas).")
+            return
+        repo = CitaRepositoryPostgres()
+        agendamiento = AgendamientoService(repo)
+        confirmacion = ConfirmacionService(repo, agendamiento=agendamiento)
+        hoy = timezone.localdate()
+        pac = {p.rut: p for p in Paciente.objects.all()}
+        P = lambda cuerpo: pac[rut(cuerpo)]  # noqa: E731
+
+        def libres(especialidad, desde_dias=1, hasta_dias=12):
+            return list(repo.cupos_libres({
+                "desde": hoy + timedelta(days=desde_dias), "hasta": hoy + timedelta(days=hasta_dias),
+                "especialidad": Especialidad.objects.get(nombre=especialidad),
+            }))
+
+        mg = libres("Medicina General")
+        # Próximos días: agendadas (recordatorio pendiente), esperando respuesta, sin respuesta, confirmada, cancelada
+        c_agendada = agendamiento.agendar(P(15234871), mg[0], tens).citas[0]
+        c_esperando = agendamiento.agendar(P(9876543), mg[2], tens).citas[0]
+        confirmacion.enviar_recordatorio(c_esperando, tens)
+        c_sin_resp = agendamiento.agendar(P(18765432), mg[4], tens).citas[0]
+        confirmacion.enviar_recordatorio(c_sin_resp, tens)
+        confirmacion.marcar_sin_respuesta(c_sin_resp, tens)
+        c_con_sobre = agendamiento.agendar(P(12345670), mg[6], tens).citas[0]
+        confirmacion.enviar_recordatorio(c_con_sobre, tens)
+        confirmacion.marcar_sin_respuesta(c_con_sobre, tens)
+        agendamiento.agendar_sobrecupo(P(16789012), c_con_sobre.cupo, tens, observaciones="Sobrecupo de demostración")
+        c_conf = agendamiento.agendar(P(6543219), mg[8], tens).citas[0]
+        confirmacion.enviar_recordatorio(c_conf, tens)
+        confirmacion.registrar_confirmacion(c_conf, tens)
+        c_canc = agendamiento.agendar(P(19876543), mg[10], tens).citas[0]
+        confirmacion.registrar_cancelacion(c_canc, tens, "Paciente avisa que viajará")
+        agendamiento.agendar(P(8765432), mg[12], tens, dias_aviso=3)
+        # RN-01: tratamientos con todas las sesiones agendadas de una vez
+        agendamiento.agendar(P(24123456), libres("Kinesiología")[0], tens, sesiones=4,
+                             observaciones="Rehabilitación de tobillo")
+        agendamiento.agendar(P(26345678), libres("Psicología")[0], tens, sesiones=3)
+        agendamiento.agendar(P(23456789), libres("Fonoaudiología")[0], tens, sesiones=2)
+        agendamiento.agendar(P(25234567), libres("Nutrición")[0], tens)
+        self.stdout.write(f"  Citas: {Cita.objects.count()} · Mensajes simulados: {MensajeEnviado.objects.count()}")
