@@ -1,0 +1,81 @@
+{% load static %}<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Inicio{% endblock %} · Hermandad de Dolores</title>
+  <link rel="stylesheet" href="{% static 'vendor/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body class="bg-light">
+{% if user.is_authenticated %}
+<nav class="navbar navbar-expand-lg navbar-dark bg-hd mb-4">
+  <div class="container-fluid">
+    <a class="navbar-brand fw-semibold" href="{% url 'home' %}">Hermandad de Dolores</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menu" aria-label="Menú">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="menu">
+      <ul class="navbar-nav me-auto">
+        {% if es_tens or es_admin %}
+        <li class="nav-item"><a class="nav-link" href="{% url 'pacientes:lista' %}">Pacientes</a></li>
+        {% endif %}
+        {% if es_tens %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Citas</a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'citas:disponibilidad' %}">Disponibilidad y agendamiento</a></li>
+            <li><a class="dropdown-item" href="{% url 'citas:lista' %}">Listado de citas</a></li>
+            <li><a class="dropdown-item" href="{% url 'citas:recordatorios' %}">Recordatorios pendientes</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{% url 'citas:mensajes' %}">Mensajes enviados</a></li>
+          </ul>
+        </li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'lista_espera:lista' %}">Lista de espera</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'asistencia:lista' %}">Asistencia</a></li>
+        {% endif %}
+        {% if es_admin %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Configuración</a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'profesionales:lista' %}">Profesionales</a></li>
+            <li><a class="dropdown-item" href="{% url 'profesionales:especialidades' %}">Especialidades</a></li>
+            <li><a class="dropdown-item" href="{% url 'profesionales:policlinicos' %}">Policlínicos</a></li>
+          </ul>
+        </li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'agenda:lista' %}">Agendas y cupos</a></li>
+        {% endif %}
+        {% if es_profesional and not es_tens %}
+        <li class="nav-item"><a class="nav-link" href="{% url 'citas:lista' %}">Mis citas</a></li>
+        {% endif %}
+        {% if es_admin or es_profesional %}
+        <li class="nav-item"><a class="nav-link" href="{% url 'reportes:inicio' %}">Reportes</a></li>
+        {% endif %}
+      </ul>
+      <span class="navbar-text text-white-50 me-3 small">
+        {{ user.get_full_name|default:user.username }}
+        · {% for g in user.groups.all %}{{ g.name }}{% if not forloop.last %}, {% endif %}{% empty %}{% if user.is_superuser %}Superusuario{% endif %}{% endfor %}
+      </span>
+      <form method="post" action="{% url 'logout' %}" class="d-inline">
+        {% csrf_token %}
+        <button class="btn btn-outline-light btn-sm">Cerrar sesión</button>
+      </form>
+    </div>
+  </div>
+</nav>
+{% endif %}
+
+<main class="container{% block contenedor_fluido %}{% endblock %} pb-5">
+  {% for m in messages %}
+  <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show" role="alert">
+    {{ m }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+  </div>
+  {% endfor %}
+  {% block contenido %}{% endblock %}
+</main>
+
+<script src="{% static 'vendor/bootstrap.bundle.min.js' %}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

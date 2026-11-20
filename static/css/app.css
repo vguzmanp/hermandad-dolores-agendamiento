@@ -1,0 +1,21 @@
+:root {
+  --hd-primario: #5b2a6e;
+  --hd-primario-oscuro: #431f52;
+}
+.bg-hd { background-color: var(--hd-primario); }
+.btn-hd { background-color: var(--hd-primario); border-color: var(--hd-primario); color: #fff; }
+.btn-hd:hover, .btn-hd:focus { background-color: var(--hd-primario-oscuro); border-color: var(--hd-primario-oscuro); color: #fff; }
+.text-hd { color: var(--hd-primario); }
+.login-card { max-width: 420px; }
+.card-modulo { transition: transform .1s ease-in-out; }
+.card-modulo:hover { transform: translateY(-2px); }
+.table td, .table th { vertical-align: middle; }
+.cupo-libre { background-color: #e8f5e9 !important; }
+.cupo-ocupado { background-color: #fdecea !important; }
+.cupo-bloqueado { background-color: #eceff1 !important; color: #607d8b; }
+.cupo-sobrecupo { background-color: #fff8e1 !important; }
+.badge-estado-agendada { background-color: #0d6efd; }
+.badge-estado-confirmada { background-color: #198754; }
+.badge-estado-cancelada { background-color: #6c757d; }
+.badge-estado-sin_respuesta { background-color: #fd7e14; }
+.mensaje-whatsapp { background: #dcf8c6; border-radius: .5rem; padding: .5rem .75rem; white-space: pre-line; }

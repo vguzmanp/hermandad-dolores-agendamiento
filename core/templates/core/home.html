@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block titulo %}Inicio{% endblock %}
+{% block contenido %}
+<div class="mb-4">
+  <h1 class="h3 mb-0">Bienvenido/a, {{ user.get_full_name|default:user.username }}</h1>
+  <p class="text-muted">Sistema de Gestión de Pacientes y Citas · Hermandad de Dolores</p>
+</div>
+
+{% if resumen %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3"><div class="card text-center shadow-sm"><div class="card-body">
+    <div class="display-6">{{ resumen.citas_hoy }}</div><div class="small text-muted">Citas hoy</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card text-center shadow-sm"><div class="card-body">
+    <div class="display-6">{{ resumen.confirmadas_hoy }}</div><div class="small text-muted">Confirmadas hoy</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card text-center shadow-sm"><div class="card-body">
+    <div class="display-6 text-warning">{{ resumen.sin_respuesta }}</div><div class="small text-muted">Sin respuesta (próximas)</div></div></div></div>
+  <div class="col-6 col-md-3"><div class="card text-center shadow-sm"><div class="card-body">
+    <div class="display-6 text-primary">{{ resumen.recordatorios_pendientes }}</div><div class="small text-muted">Recordatorios por enviar</div></div></div></div>
+</div>
+{% endif %}
+
+<div class="row g-3">
+  {% if es_tens %}
+  <div class="col-md-4"><a class="text-decoration-none" href="{% url 'pacientes:buscar_rut' %}">
+    <div class="card h-100 shadow-sm card-modulo"><div class="card-body">
+      <h2 class="h5 text-hd">Buscar / registrar paciente</h2>
+      <p class="text-muted small mb-0">Busca por RUT antes de registrar para evitar duplicados (RF-02).</p>
+    </div></div></a></div>
+  <div class="col-md-4"><a class="text-decoration-none" href="{% url 'citas:disponibilidad' %}">
+    <div class="card h-100 shadow-sm card-modulo"><div class="card-body">
+      <h2 class="h5 text-hd">Agendar cita</h2>
+      <p class="text-muted small mb-0">Disponibilidad por especialidad, profesional, policlínico y fecha. Sobrecupos.</p>
+    </div></div></a></div>
+  <div class="col-md-4"><a class="text-decoration-none" href="{% url 'citas:recordatorios' %}">
+    <div class="card h-100 shadow-sm card-modulo"><div class="card-body">
+      <h2 class="h5 text-hd">Confirmaciones</h2>
+      <p class="text-muted small mb-0">Enviar recordatorios y registrar la respuesta del paciente (simulada).</p>
+    </div></div></a></div>
+  {% endif %}
+  {% if es_admin %}
+  <div class="col-md-4"><a class="text-decoration-none" href="{% url 'agenda:lista' %}">
+    <div class="card h-100 shadow-sm card-modulo"><div class="card-body">
+      <h2 class="h5 text-hd">Agendas y cupos</h2>
+      <p class="text-muted small mb-0">Bloques semanales por profesional y policlínico; generar, bloquear y liberar cupos.</p>
+    </div></div></a></div>
+  <div class="col-md-4"><a class="text-decoration-none" href="{% url 'profesionales:lista' %}">
+    <div class="card h-100 shadow-sm card-modulo"><div class="card-body">
+      <h2 class="h5 text-hd">Profesionales</h2>
+      <p class="text-muted small mb-0">Profesionales, especialidades y policlínicos.</p>
+    </div></div></a></div>
+  {% endif %}
+  {% if es_admin or es_profesional %}
+  <div class="col-md-4"><a class="text-decoration-none" href="{% url 'reportes:inicio' %}">
+    <div class="card h-100 shadow-sm card-modulo"><div class="card-body">
+      <h2 class="h5 text-hd">Reportes y estadísticas</h2>
+      <p class="text-muted small mb-0">Caracterización de pacientes y estadísticas por profesional y policlínico.</p>
+    </div></div></a></div>
+  {% endif %}
+  {% if es_profesional and not es_tens %}
+  <div class="col-md-4"><a class="text-decoration-none" href="{% url 'citas:lista' %}">
+    <div class="card h-100 shadow-sm card-modulo"><div class="card-body">
+      <h2 class="h5 text-hd">Mis citas</h2>
+      <p class="text-muted small mb-0">Consulta de sus citas agendadas (solo lectura).</p>
+    </div></div></a></div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block titulo %}{{ modulo }}{% endblock %}
+{% block contenido %}
+<div class="text-center py-5">
+  <h1 class="h3">{{ modulo }}</h1>
+  <p class="text-muted">Este módulo se construye en la etapa {{ etapa }} del plan de trabajo.</p>
+  <a href="{% url 'home' %}" class="btn btn-outline-secondary">Volver al inicio</a>
+</div>
+{% endblock %}
