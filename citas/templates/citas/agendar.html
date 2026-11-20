@@ -10,7 +10,7 @@
 {% if reagendar %}
 <div class="aviso aviso-azul mb-3">
   <strong>Reagendando la cita del {{ reagendar.cupo.fecha|date:"d/m/Y" }} a las {{ reagendar.cupo.hora_inicio|time:"H:i" }} con {{ reagendar.cupo.agenda.profesional.nombre }}</strong>
-  <div class="small">Al agendar la nueva hora, la anterior se cancela y su hora queda libre. <a href="{% url 'citas:agendar' %}?paciente={{ paciente.pk }}">Cancelar el cambio</a></div>
+  <div class="small"><a href="{% url 'citas:agendar' %}?paciente={{ paciente.pk }}">Cancelar el cambio</a></div>
 </div>
 {% endif %}
 
@@ -40,7 +40,7 @@
             <span class="celda-principal">{{ p.nombre }}</span><span class="celda-sec d-block">RUT {{ p.rut|rut }} · {{ p.edad }} años</span></a>
           {% empty %}<div class="p-3 small text-gris">Sin resultados. <a href="{% url 'pacientes:lista' %}?rut={{ q|urlencode }}">Registrar paciente</a></div>{% endfor %}
         </div>
-        {% else %}<p class="small text-gris mb-3">Busca al paciente para ver sus citas y agendar.</p>{% endif %}
+        {% endif %}
       {% endif %}
 
       <label class="form-label">Especialidad <span class="req">*</span></label>
@@ -71,7 +71,7 @@
       <select class="form-select" name="sesiones" data-autosubmit>
         {% for n in rango_sesiones %}<option value="{{ n }}" {% if n == sesiones %}selected{% endif %}>{{ n }} sesi{{ n|pluralize:"ón,ones" }}</option>{% endfor %}
       </select>
-      <div class="form-text">Esta especialidad permite agendar todas las sesiones del tratamiento de una vez.</div>
+
       {% endif %}
     </form>
   </div>
@@ -118,7 +118,7 @@
       {% endfor %}
     </div>
     {% if sobrecupo %}
-    <div class="small text-gris fw-semibold mt-3 mb-2">Sobrecupo (citas del día sin confirmar)</div>
+    <div class="small text-gris fw-semibold mt-3 mb-2">Sobrecupo</div>
     <div class="grilla-slots">
       {% for c in sobrecupo %}
       <div><input type="radio" class="btn-check" name="cupo" id="s{{ c.pk }}" value="{{ c.pk }}" data-tipo="sobrecupo"
@@ -140,18 +140,17 @@
     {% if en_espera %}
     <div class="aviso aviso-verde"><strong>Paciente anotado/a en la lista de espera de {{ en_espera.especialidad }} · {{ en_espera.policlinico }}</strong><div class="small">Desde el {{ en_espera.creada_en|date:"d/m/Y" }}. Se le contactará cuando se libere una hora.</div></div>
     {% elif paciente and policlinico %}
-    <p class="small text-gris">Puedes anotar al paciente en la lista de espera de {{ especialidad }} en el {{ policlinico }} (para cualquier profesional de la especialidad).</p>
+
     <form method="post">{% csrf_token %}
       <input type="hidden" name="accion" value="espera">
       {% for k, v in params.items %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
       <button class="btn btn-primary">Anotar en lista de espera</button>
     </form>
-    {% elif paciente %}<div class="small text-gris">Elige el policlínico para anotar al paciente en la lista de espera.</div>
-    {% else %}<div class="small text-gris">Elige al paciente para anotarlo en la lista de espera.</div>{% endif %}
+    {% endif %}
   </div>
   {% endif %}
   {% else %}
-  <div class="small text-gris">Elige una especialidad y un profesional para ver sus horas.</div>
+
   {% endif %}
 </div>
 
@@ -197,7 +196,7 @@
 <div class="modal fade" id="modalCancelar" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body">
     <h2 class="h4">¿Cancelar la cita?</h2>
-    <p class="text-gris"><span id="detalleCancelar"></span>. La hora queda libre para otro paciente.</p>
+    <p class="text-gris"><span id="detalleCancelar"></span></p>
     <form method="post" id="formCancelar" class="d-flex justify-content-end gap-2">
       {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
       <input type="hidden" name="motivo" value="El paciente avisó a la TENS/TONS">

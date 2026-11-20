@@ -4,7 +4,7 @@
 {% block cuerpo %}
 {% include "portal/_pasos.html" with paso=2 %}
 <h1 class="titulo-pagina">Elige profesional y hora</h1>
-<p class="subtitulo">{{ esp.nombre }}{% if pol %} · {{ pol.nombre }}{% endif %} · horas disponibles de los próximos días</p>
+<p class="subtitulo">{{ esp.nombre }}{% if pol %} · {{ pol.nombre }}{% endif %}</p>
 
 {% for t in tarjetas %}
 <div class="tarjeta tarjeta-cuerpo mb-3">
@@ -44,7 +44,7 @@
 {% if not total_libres %}
 <div class="aviso aviso-naranjo mb-3">
   <strong>No hay horas disponibles por ahora.</strong>
-  <div class="mb-2">Puedes quedar en la lista de espera de {{ esp.nombre }} en el {{ pol.nombre }} y la Hermandad te contactará cuando se libere una hora.</div>
+
   <form method="post">{% csrf_token %}{% for k, v in base.items %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
     <input type="hidden" name="accion" value="espera"><button class="btn btn-primary btn-lg-hd">Anotarme en lista de espera</button></form>
 </div>

@@ -4,7 +4,7 @@
 <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
   <div>
     <h1 class="titulo-pagina">Profesionales</h1>
-    <p class="subtitulo">Registra a los profesionales, define su horario semanal y controla qué horas se pueden agendar.</p>
+
   </div>
   <a class="btn btn-primary btn-lg-hd" href="?nuevo=1">+ Agregar profesional</a>
 </div>
@@ -35,12 +35,12 @@
   {% endfor %}
   </tbody>
 </table></div></div>
-<p class="small text-gris mt-2">Un profesional inactivo deja de aparecer para agendar. Sus citas ya agendadas se mantienen.</p>
+
 
 <div class="modal fade" id="modalProfesional" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body">
     <h2 class="h4 mb-1">{% if editar %}Editar profesional{% else %}Agregar profesional{% endif %}</h2>
-    <p class="text-gris">{% if editar %}Cambia el nombre, el RUT o la especialidad.{% else %}Después de guardarlo, define su horario semanal.{% endif %}</p>
+
     <form method="post" novalidate>
       {% csrf_token %}{% if editar %}<input type="hidden" name="pk" value="{{ editar.pk }}">{% endif %}
       {% include "includes/campo.html" with campo=form.nombre %}

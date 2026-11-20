@@ -1,11 +1,11 @@
 {% extends "base_publico.html" %}
 {% load hd %}
 {% block titulo %}Cambia tu hora{% endblock %}
-{% block subtitulo_cabecera %}Confirmación de hora · sin cuenta ni clave{% endblock %}
+{% block subtitulo_cabecera %}Confirmación de hora{% endblock %}
 {% block derecha_cabecera %}{% endblock %}
 {% block cuerpo %}
 <h1 class="titulo-pagina">Cambia tu hora</h1>
-<p class="subtitulo">Elige otro día y hora con {{ prof.nombre }}. Tu hora actual ({{ cita.cupo.fecha|fecha_larga }} · {{ cita.cupo.hora_inicio|time:"H:i" }}) se libera al confirmar el cambio.</p>
+<p class="subtitulo">{{ prof.nombre }} · hora actual: {{ cita.cupo.fecha|fecha_larga }} · {{ cita.cupo.hora_inicio|time:"H:i" }}</p>
 <div class="tarjeta tarjeta-cuerpo">
   {% if dias %}
   <div class="fw-semibold mb-2">Días con horas disponibles</div>

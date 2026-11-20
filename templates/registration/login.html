@@ -8,7 +8,7 @@
 <div class="row justify-content-center py-4">
   <div class="col-md-6 col-lg-5">
     <h1 class="titulo-pagina">{% if request.GET.rol == "tens" %}Entrar como TENS/TONS{% elif request.GET.rol == "admin" %}Entrar como Administración{% else %}Ingresar{% endif %}</h1>
-    <p class="subtitulo">{% if request.GET.rol == "tens" %}El usuario es el nombre de tu policlínico (por ejemplo, <code>san_lazaro</code>).{% else %}Usa tu usuario y contraseña de la Hermandad.{% endif %}</p>
+
     <div class="tarjeta tarjeta-cuerpo">
       {% if form.errors %}<div class="aviso aviso-rojo mb-3">Usuario o contraseña incorrectos.</div>{% endif %}
       <form method="post" action="{% url 'login' %}">

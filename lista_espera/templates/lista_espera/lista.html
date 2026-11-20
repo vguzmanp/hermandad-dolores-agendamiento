@@ -3,7 +3,7 @@
 {% block titulo %}Lista de espera{% endblock %}
 {% block contenido %}
 <h1 class="titulo-pagina">Lista de espera</h1>
-<p class="subtitulo">Pacientes que no encontraron hora y aceptaron quedar anotados. Cada lista es de una especialidad en un policlínico{% if pol_tens %} · {{ pol_tens.nombre }}{% endif %}.</p>
+{% if pol_tens %}<p class="subtitulo">{{ pol_tens.nombre }}</p>{% endif %}
 
 <div class="row g-3 mb-4">
   <div class="col-6 col-lg-3"><div class="kpi"><div class="valor">{{ resumen.en_espera }}</div><div class="etiqueta">En espera</div></div></div>
@@ -28,8 +28,7 @@
 
 <div class="row g-4">
   <div class="col-xl-8">
-    <div class="aviso aviso-azul mb-3"><strong>Orden de llegada</strong>
-      <div class="small">En cada lista (especialidad y policlínico) los pacientes se ordenan según su registro. {% if puede_gestionar %}Puedes subir manualmente a un paciente en su lista.{% else %}Solo las TENS/TONS pueden cambiar el orden.{% endif %}</div></div>
+
     <div class="tabla-hd"><div class="table-responsive"><table class="table">
       <thead><tr><th>#</th><th>Paciente</th><th>Especialidad</th>{% if not pol_tens %}<th>Policlínico</th>{% endif %}<th>Tiempo en espera</th><th>Estado</th>{% if puede_gestionar %}<th></th>{% endif %}</tr></thead>
       <tbody>
@@ -51,8 +50,7 @@
   <div class="col-xl-4">
     {% if not puede_gestionar %}
     <div class="tarjeta tarjeta-cuerpo" style="border-color: var(--hd-azul)">
-      <h2 class="h5">Solo consulta</h2>
-      <p class="small text-gris mb-0">La Administración puede ver la lista de espera. Las TENS/TONS son quienes actualizan el estado de cada paciente.</p>
+      <h2 class="h5 mb-0">Solo consulta</h2>
     </div>
     {% elif sel %}
     <div class="tarjeta tarjeta-cuerpo" style="border-color: var(--hd-azul)">
@@ -75,10 +73,8 @@
       {% elif sel.cita %}
       <a class="btn btn-suave w-100" href="{% url 'citas:detalle' sel.cita.pk %}">Ver cita agendada</a>
       {% endif %}
-      <p class="small text-gris mt-3 mb-0">Si no se logra contactar al paciente, sigue en la lista. «Subir» mueve al paciente un lugar hacia adelante en la lista de {{ sel.especialidad }}.</p>
+
     </div>
-    {% else %}
-    <div class="tarjeta tarjeta-cuerpo text-gris small">Elige «Gestionar» en un paciente para actualizar su estado, agendarle una cita o subirlo en la lista.</div>
     {% endif %}
   </div>
 </div>

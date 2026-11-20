@@ -5,7 +5,7 @@
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
   <div>
     <h1 class="titulo-pagina">Reportes de gestión</h1>
-    <p class="subtitulo">Caracterización de pacientes, demanda y atención, y el historial de cada paciente. Todos los filtros se pueden combinar.</p>
+
   </div>
   <div class="segmento">
     {% for clave, etiqueta in tabs %}<a href="?tab={{ clave }}{% if qs %}&{{ qs }}{% endif %}" class="{% if tab == clave %}activo{% endif %}">{{ etiqueta }}</a>{% endfor %}
@@ -116,7 +116,7 @@
   </div>
 </div>
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
-  <span class="small text-gris">«Horas pedidas» incluye las citas canceladas. La inasistencia se calcula sobre las citas con asistencia registrada.</span>
+  <span></span>
   <a class="btn btn-suave" href="{% url 'reportes:csv' %}?{{ qs }}">Descargar (CSV)</a>
 </div>
 
@@ -160,6 +160,6 @@
   {% else %}<span></span>{% endif %}
   <a class="btn btn-suave" href="{% url 'reportes:csv_pacientes' %}?{{ qs }}">Descargar listado (CSV)</a>
 </div>
-<p class="small text-gris mt-2">Los totales consideran las citas del período y de los filtros. «Última atención» y «Próxima cita» consideran todo el historial del paciente.</p>
+
 {% endif %}
 {% endblock %}

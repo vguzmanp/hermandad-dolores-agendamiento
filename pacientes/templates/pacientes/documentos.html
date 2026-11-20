@@ -4,7 +4,7 @@
 {% block contenido %}
 <h1 class="titulo-pagina mb-3">Documentos del paciente</h1>
 {% if not paciente %}
-<p class="subtitulo">Busca al paciente para ver y adjuntar sus documentos.</p>
+
 <form method="get" class="d-flex gap-2 mb-3" style="max-width: 560px">
   <input class="form-control" name="q" value="{{ q }}" placeholder="Nombre o RUT…" autofocus>
   <button class="btn btn-primary">Buscar</button>
@@ -26,7 +26,7 @@
   <a href="{% url 'documentos:lista' %}">Cambiar paciente</a>
 </div>
 {% if not paciente.inscrito_cesfam %}
-<div class="aviso aviso-naranjo mb-4"><strong>Falta la inscripción al CESFAM</strong><div class="small">Avisa al paciente: es indispensable para una eventual derivación.</div></div>
+<div class="aviso aviso-naranjo mb-4"><strong>Falta la inscripción al CESFAM</strong></div>
 {% endif %}
 <div class="row g-4">
   <div class="col-lg-5">
@@ -36,11 +36,11 @@
         {% csrf_token %}
         <input type="hidden" name="paciente" value="{{ paciente.pk }}">
         {% include "includes/campo.html" with campo=form.tipo %}
-        <div class="form-text mt-n2 mb-3" id="ayudaTipo">La inscripción al CESFAM es indispensable para una eventual derivación.</div>
+
         <label class="form-label">Archivo <span class="req">*</span></label>
         <div class="zona-archivo mb-1">{{ form.archivo }}</div>
         {% for e in form.archivo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-        <div class="form-text mb-3">PDF, JPG o PNG.</div>
+        <div class="mb-3"></div>
         <button class="btn btn-primary w-100 btn-lg-hd">Adjuntar documento</button>
       </form>
     </div>
@@ -103,7 +103,5 @@ if (m) {
   });
   m.addEventListener("hidden.bs.modal", () => { document.getElementById("docFrame").src = "about:blank"; location.reload(); });
 }
-const tipo = document.getElementById("id_tipo"), ayuda = document.getElementById("ayudaTipo");
-if (tipo && ayuda) { const f = () => ayuda.classList.toggle("d-none", tipo.value !== "cesfam"); tipo.addEventListener("change", f); f(); }
 </script>
 {% endblock %}

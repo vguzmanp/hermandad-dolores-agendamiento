@@ -2,11 +2,10 @@
 {% block titulo %}Horario semanal{% endblock %}
 {% block contenido %}
 <h1 class="titulo-pagina">Profesionales</h1>
-<p class="subtitulo">{% if es_admin_agenda %}Define los bloques de horas de cada semana.{% else %}Horario semanal de cada profesional.{% endif %}</p>
+
 {% include "agenda/_filtros.html" %}
 
-<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-  <p class="small text-gris mb-0">{% if es_admin_agenda %}Define los bloques de {{ prof.nombre }}: se repiten todas las semanas y generan los cupos automáticamente.{% else %}El horario semanal lo define la Administración. Aquí solo puedes consultarlo.{% endif %}</p>
+<div class="d-flex justify-content-end align-items-center flex-wrap gap-2 mb-3">
   {% if es_admin_agenda and prof %}<button class="btn btn-primary btn-lg-hd" data-bs-toggle="modal" data-bs-target="#modalBloque">+ Agregar bloque semanal</button>{% endif %}
 </div>
 
@@ -31,7 +30,7 @@
 <div class="modal fade" id="modalBloque" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-body">
     <h2 class="h4 mb-1">Agregar bloque semanal</h2>
-    <p class="text-gris">{{ prof.nombre }} · se repite todas las semanas</p>
+    <p class="text-gris">{{ prof.nombre }}</p>
     <form method="post" novalidate>
       {% csrf_token %}<input type="hidden" name="profesional" value="{{ prof.pk }}">
       {% include "includes/campo.html" with campo=form.dia_semana %}

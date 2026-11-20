@@ -3,7 +3,7 @@
 {% block titulo %}Asistencia{% endblock %}
 {% block contenido %}
 <h1 class="titulo-pagina">Asistencia</h1>
-<p class="subtitulo">Registra si el paciente asistió a su cita{% if pol_tens %} en el {{ pol_tens.nombre }}{% endif %}. El dato queda disponible para los reportes.</p>
+{% if pol_tens %}<p class="subtitulo">{{ pol_tens.nombre }}</p>{% endif %}
 
 <div class="d-flex align-items-center gap-3 mb-3">
   <a class="btn btn-gris btn-xs" href="?fecha={{ anterior|date:'Y-m-d' }}">‹</a>
@@ -28,7 +28,7 @@
   <span class="pill pill-rojo">No asistieron {{ resumen.no_asistieron }}</span>
   <span class="pill pill-gris">Sin registrar {{ resumen.sin_registrar }}</span>
 </div>
-{% if futuro %}<div class="aviso aviso-azul small mb-3">Este día aún no llega: la asistencia se registra el día de la cita.</div>{% endif %}
+
 
 <div class="tabla-hd"><div class="table-responsive"><table class="table">
   <thead><tr><th>Hora</th><th>Paciente</th><th>Profesional</th><th>Confirmación</th><th>Asistencia</th></tr></thead>
@@ -42,7 +42,7 @@
       {% if c.es_vigente %}<div><button class="btn btn-link btn-sm p-0 small" data-bs-toggle="modal" data-bs-target="#modalRespuesta"
         data-url="{% url 'citas:accion' c.pk 'respuesta' %}" data-estado="{{ c.estado }}" data-detalle="{{ c.paciente.nombre }} · {{ c.cupo.fecha|fecha_corta }} · {{ c.cupo.hora_inicio|time:'H:i' }}">{% if c.estado == "agendada" %}Registrar respuesta{% else %}Cambiar respuesta{% endif %}</button></div>{% endif %}</td>
     <td>
-      {% if c.estado == "cancelada" %}<span class="small text-gris">Cita cancelada: no se registra asistencia</span>
+      {% if c.estado == "cancelada" %}<span class="small text-gris">—</span>
       {% else %}
       {% with a=c.asistencia_registrada %}
       <form method="post" action="{% url 'asistencia:registrar' c.pk %}" class="d-flex gap-2">{% csrf_token %}
@@ -58,6 +58,6 @@
   {% endfor %}
   </tbody>
 </table></div></div>
-<p class="small text-gris mt-2">Si marcaste mal, vuelve a elegir la opción correcta y el cambio se guarda.</p>
+
 {% include "includes/modal_respuesta.html" %}
 {% endblock %}

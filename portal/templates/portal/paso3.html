@@ -3,8 +3,7 @@
 {% block cuerpo %}
 {% include "portal/_pasos.html" with paso=3 %}
 <h1 class="titulo-pagina">Datos del paciente</h1>
-<p class="subtitulo">Ingresa el RUT. Si ya te has atendido con nosotros, no tienes que escribir tus datos otra vez.</p>
-{% if espera %}<div class="aviso aviso-azul small mb-3">Te anotaremos en la <strong>lista de espera</strong>; la Hermandad te contactará cuando se libere una hora.</div>{% endif %}
+{% if espera %}<div class="aviso aviso-azul small mb-3">Lista de espera</div>{% endif %}
 <div class="tarjeta tarjeta-cuerpo mb-3">
   <div class="d-flex flex-wrap gap-2 mb-3">
     <a class="btn rounded-pill {% if not familiar %}btn-suave border border-primary{% else %}btn-blanco{% endif %}" href="?">Soy el paciente</a>
@@ -24,7 +23,7 @@
   <form method="post" novalidate>
     {% csrf_token %}<input type="hidden" name="paso" value="registro"><input type="hidden" name="quien" value="{% if familiar %}familiar{% endif %}">
     {% include "includes/campo.html" with campo=form.rut %}
-    <div class="aviso aviso-naranjo mb-3">Es la primera vez de este paciente. Completa sus datos (se piden una sola vez).</div>
+    <div class="aviso aviso-naranjo mb-3">Es la primera vez de este paciente.</div>
     {% for e in form.non_field_errors %}<div class="aviso aviso-rojo mb-3">{{ e }}</div>{% endfor %}
     <div class="row">
       <div class="col-12">{% include "includes/campo.html" with campo=form.nombre %}</div>

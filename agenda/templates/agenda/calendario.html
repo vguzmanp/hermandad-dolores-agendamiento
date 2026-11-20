@@ -2,7 +2,7 @@
 {% block titulo %}Bloquear y liberar horas{% endblock %}
 {% block contenido %}
 <h1 class="titulo-pagina">Profesionales</h1>
-<p class="subtitulo">Calendario de cupos de cada profesional: bloquea horas o libéralas de a poco.</p>
+
 {% include "agenda/_filtros.html" %}
 
 <form method="post" action="{% url 'agenda:calendario_accion' %}">
@@ -39,7 +39,7 @@
     <div class="col-xl-4">
       <div class="tarjeta tarjeta-cuerpo">
         <h2 class="h5">Bloques seleccionados</h2>
-        <div class="small text-gris mb-3" id="seleccion">Ninguno. Haz clic en las horas del calendario.</div>
+        <div class="small text-gris mb-3" id="seleccion">Ninguno.</div>
         <input class="form-control mb-2" name="motivo" placeholder="Motivo del bloqueo (opcional)">
         <button class="btn btn-suave-rojo w-100 btn-lg-hd mb-2" name="accion" value="bloquear">Bloquear horas</button>
         <button class="btn btn-primary w-100 btn-lg-hd mb-3" name="accion" value="liberar">Liberar horas</button>
@@ -50,7 +50,7 @@
           <option value="2">2 bloques por vez</option>
           <option value="4">4 bloques por vez</option>
         </select>
-        <div class="form-text">Habilita los bloques de a poco; vuelven a mostrarse como disponibles.</div>
+
         <hr>
         <h3 class="h6">Leyenda</h3>
         <div class="small mb-2"><span class="leyenda-cuadro" style="background:#e3f4e8; border:1px solid #b8dfc5"></span>Disponible</div>
@@ -66,7 +66,7 @@
 const sel = document.getElementById("seleccion");
 function actualizar() {
   const marcados = [...document.querySelectorAll(".sel-cupo:checked")].map(c => c.dataset.texto);
-  sel.innerHTML = marcados.length ? marcados.join("<br>") + ` <br><strong>(${marcados.length} bloque${marcados.length > 1 ? "s" : ""})</strong>` : "Ninguno. Haz clic en las horas del calendario.";
+  sel.innerHTML = marcados.length ? marcados.join("<br>") + ` <br><strong>(${marcados.length} bloque${marcados.length > 1 ? "s" : ""})</strong>` : "Ninguno.";
 }
 document.querySelectorAll(".sel-cupo").forEach(c => c.addEventListener("change", actualizar));
 </script>

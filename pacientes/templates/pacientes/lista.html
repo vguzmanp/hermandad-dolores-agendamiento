@@ -6,7 +6,7 @@
   <div class="col-xl-7">
     {% if form %}
     <h1 class="titulo-pagina">{% if paciente %}Editar datos del paciente{% else %}Registro de paciente{% endif %}</h1>
-    <p class="small text-gris mb-4">Se registra una sola vez; en las próximas citas el sistema recupera estos datos. Los campos con <span class="req">*</span> son obligatorios.</p>
+
     {% if paciente %}
       {% for a in paciente.advertencias %}<div class="aviso aviso-naranjo small mb-3">{{ a }}{% if "CESFAM" in a %} <a href="{% url 'documentos:lista' %}?paciente={{ paciente.pk }}">Adjuntar comprobante</a>{% endif %}</div>{% endfor %}
     {% endif %}
@@ -43,7 +43,7 @@
     </form>
     {% elif paciente %}
     <h1 class="titulo-pagina">{{ paciente.nombre }}</h1>
-    <p class="subtitulo">Solo consulta: las TENS/TONS registran y editan pacientes.</p>
+
     {% for a in paciente.advertencias %}<div class="aviso aviso-naranjo small mb-3">{{ a }}</div>{% endfor %}
     <div class="tarjeta tarjeta-cuerpo">
       <dl class="row mb-0">
@@ -59,7 +59,7 @@
     </div>
     {% else %}
     <h1 class="titulo-pagina">Pacientes</h1>
-    <p class="subtitulo">Busca un paciente para ver sus datos. Solo las TENS/TONS registran y editan pacientes.</p>
+
     {% endif %}
   </div>
 

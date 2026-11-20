@@ -15,7 +15,7 @@
     <span><span class="nombre d-block">Hermandad de Dolores</span><span class="sub">Sistema de gestión · {{ rol_visible }}</span></span>
   </a>
   <div class="derecha">
-    <a class="campana" href="{% url 'home' %}" title="Alertas: avisos con falla y citas sin respuesta">
+    <a class="campana" href="{% url 'home' %}" title="Alertas">
       {% include "includes/icono.html" with n="campana" %}{% if alertas %}<span class="badge">{{ alertas }}</span>{% endif %}
     </a>
     <div class="dropdown">

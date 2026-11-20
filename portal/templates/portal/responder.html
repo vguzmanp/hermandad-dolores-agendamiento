@@ -1,11 +1,11 @@
 {% extends "base_publico.html" %}
 {% load hd %}
 {% block titulo %}Confirma tu asistencia{% endblock %}
-{% block subtitulo_cabecera %}Confirmación de hora · sin cuenta ni clave{% endblock %}
+{% block subtitulo_cabecera %}Confirmación de hora{% endblock %}
 {% block derecha_cabecera %}{% endblock %}
 {% block cuerpo %}
 <h1 class="titulo-pagina">Confirma tu asistencia</h1>
-<p class="subtitulo">Abriste el link del aviso. No necesitas iniciar sesión.</p>
+
 <div class="tarjeta tarjeta-cuerpo mb-3">
   {% if cita.estado == "confirmada" %}<span class="pill pill-verde">Confirmada</span>
   {% elif cita.estado == "cancelada" %}<span class="pill pill-rojo">Cancelada</span>
@@ -31,14 +31,7 @@
         <div class="aviso aviso-azul">Esta cita ya pasó.</div>
       {% endif %}
     </div>
-    <div class="col-lg-6">
-      <div class="tarjeta-gris p-3" style="border:0">
-        <div class="fw-semibold mb-2">Qué pasa con cada respuesta</div>
-        <div class="mb-2"><span class="pill pill-verde">Confirmada</span> <span class="small text-gris">La hora se mantiene.</span></div>
-        <div class="mb-2"><span class="pill pill-rojo">Cancelada</span> <span class="small text-gris">La hora queda libre para otro paciente.</span></div>
-        <div><span class="pill pill-naranjo">Sin respuesta</span> <span class="small text-gris">Si no respondes, la Hermandad te llamará.</span></div>
-      </div>
-    </div>
+
   </div>
 </div>
 <a class="btn btn-gris btn-lg-hd" href="{% url 'portal:aviso' cita.token %}">Volver a los avisos</a>

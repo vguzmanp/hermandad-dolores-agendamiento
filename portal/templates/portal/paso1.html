@@ -3,7 +3,7 @@
 {% block cuerpo %}
 {% include "portal/_pasos.html" with paso=1 %}
 <h1 class="titulo-pagina">Reserva tu hora</h1>
-<p class="subtitulo">Elige la especialidad y luego el policlínico donde quieres atenderte. No necesitas crear una cuenta.</p>
+
 <form method="get" action="{% url 'portal:horas' %}" class="tarjeta tarjeta-cuerpo">
   <div class="row g-3 align-items-end">
     <div class="col-md-5">
@@ -19,13 +19,12 @@
         <option value="">Primero elige la especialidad</option>
         {% for p in policlinicos %}<option value="{{ p.pk }}" {% if pol_sel == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}
       </select>
-      <div class="form-text" id="ayudaPol">Solo aparecen los policlínicos que atienden la especialidad elegida.</div>
+
     </div>
     <div class="col-md-2"><button class="btn btn-primary btn-lg-hd w-100">Buscar horas</button></div>
   </div>
 </form>
-<p class="small text-gris mt-3">¿Ya tienes hora? Usa el link que te enviamos por WhatsApp o correo para confirmarla, cambiarla o cancelarla.</p>
-<a class="btn btn-gris btn-lg-hd" href="/">Volver al inicio</a>
+<a class="btn btn-gris btn-lg-hd mt-3" href="/">Volver al inicio</a>
 {% endblock %}
 {% block scripts %}
 <script>
