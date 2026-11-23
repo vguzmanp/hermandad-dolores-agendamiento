@@ -427,7 +427,7 @@ def indicadores_admin(hoy: date | None = None, dias: int = 14) -> dict:
     """Resumen de agendas para el inicio de Administración (próximos 14 días)."""
     from agenda.models import Cupo
     from lista_espera.models import SolicitudEspera
-    from profesionales.models import Profesional
+    from profesionales.models import Especialidad, Policlinico, Profesional
 
     hoy = hoy or timezone.localdate()
     hasta = hoy + timedelta(days=dias - 1)
@@ -438,9 +438,7 @@ def indicadores_admin(hoy: date | None = None, dias: int = 14) -> dict:
                      .values_list("especialidad_id", "policlinico_id"))
     filas = {}
     for p in Profesional.objects.filter(activo=True).select_related("especialidad"):
-        pols = set(p.agendas.filter(activa=True).values_list("policlinico_id", flat=True))
-        filas[p.pk] = {"profesional": p, "ofrecidos": 0, "con_cita": 0, "bloqueados": 0, "disponibles": 0,
-                       "espera": sum(n for (esp, pol), n in espera.items() if esp == p.especialidad_id and pol in pols)}
+        filas[p.pk] = {"profesional": p, "ofrecidos": 0, "con_cita": 0, "bloqueados": 0, "disponibles": 0}
     for c in cupos:
         f = filas.get(c.agenda.profesional_id)
         if f is None:
@@ -453,6 +451,11 @@ def indicadores_admin(hoy: date | None = None, dias: int = 14) -> dict:
         else:
             f["disponibles"] += 1
     filas = [f for f in filas.values() if f["ofrecidos"]] + [f for f in filas.values() if not f["ofrecidos"]]
+    esps = Especialidad.objects.in_bulk([e for e, _ in espera])
+    pols = Policlinico.objects.in_bulk([p for _, p in espera])
+    espera_filas = sorted(({"especialidad": esps[e], "policlinico": pols[p], "pacientes": n}
+                           for (e, p), n in espera.items()),
+                          key=lambda x: (-x["pacientes"], x["policlinico"].nombre, x["especialidad"].nombre))
     abiertos = sum(f["ofrecidos"] - f["bloqueados"] for f in filas)
     con_cita = sum(f["con_cita"] for f in filas)
     return {
@@ -461,5 +464,6 @@ def indicadores_admin(hoy: date | None = None, dias: int = 14) -> dict:
         "ocupacion": round(_pct(con_cita, abiertos)),
         "en_espera": sum(espera.values()),
         "filas": filas,
+        "espera_filas": espera_filas,
         "dias": dias,
     }

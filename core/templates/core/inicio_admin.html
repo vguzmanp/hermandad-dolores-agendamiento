@@ -24,7 +24,7 @@
 <div class="tabla-hd">
   <div class="table-responsive">
   <table class="table">
-    <thead><tr><th>Profesional</th><th>Especialidad</th><th>Cupos ofrecidos</th><th>Con cita</th><th>Bloqueados</th><th>Disponibles</th><th>Lista de espera</th><th></th></tr></thead>
+    <thead><tr><th>Profesional</th><th>Especialidad</th><th>Cupos ofrecidos</th><th>Con cita</th><th>Bloqueados</th><th>Disponibles</th><th></th></tr></thead>
     <tbody>
     {% for f in ind.filas %}
     <tr>
@@ -34,10 +34,30 @@
       <td>{{ f.con_cita }}</td>
       <td>{{ f.bloqueados }}</td>
       <td>{% if f.disponibles %}<span class="pill pill-verde">{{ f.disponibles }}</span>{% else %}<span class="pill pill-rojo">0</span>{% endif %}</td>
-      <td>{{ f.espera }}</td>
+
       <td class="text-end"><a class="btn btn-suave btn-xs" href="{% url 'agenda:calendario' %}?profesional={{ f.profesional.pk }}">Ver calendario</a></td>
     </tr>
-    {% empty %}<tr><td colspan="8" class="text-center text-gris py-4">No hay profesionales activos.</td></tr>
+    {% empty %}<tr><td colspan="7" class="text-center text-gris py-4">No hay profesionales activos.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<h2 class="h4 mt-4">Lista de espera</h2>
+<div class="tabla-hd">
+  <div class="table-responsive">
+  <table class="table">
+    <thead><tr><th>Policlínico</th><th>Especialidad</th><th>Pacientes en espera</th><th></th></tr></thead>
+    <tbody>
+    {% for e in ind.espera_filas %}
+    <tr>
+      <td class="celda-principal">{{ e.policlinico.nombre }}</td>
+      <td>{{ e.especialidad.nombre }}</td>
+      <td>{{ e.pacientes }}</td>
+      <td class="text-end"><a class="btn btn-suave btn-xs" href="{% url 'lista_espera:lista' %}?policlinico={{ e.policlinico.pk }}&especialidad={{ e.especialidad.pk }}">Ver lista</a></td>
+    </tr>
+    {% empty %}<tr><td colspan="4" class="text-center text-gris py-4">No hay pacientes en lista de espera.</td></tr>
     {% endfor %}
     </tbody>
   </table>
