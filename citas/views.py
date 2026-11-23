@@ -232,6 +232,17 @@ def _agendar_post(request):
 # ======================================================================
 # Listado, detalle y acciones
 # ======================================================================
+ORDEN_CITAS = {
+    "fecha": ["cupo__fecha", "cupo__hora_inicio"],
+    "hora": ["cupo__hora_inicio"],
+    "paciente": ["paciente__nombre"],
+    "profesional": ["cupo__agenda__profesional__nombre"],
+    "policlinico": ["cupo__agenda__policlinico__nombre"],
+    "canal": ["canal"],
+    "estado": ["estado"],
+}
+
+
 @roles.rol_requerido(roles.TENS, roles.ADMINISTRACION)
 def lista(request):
     hoy = timezone.localdate()
@@ -245,7 +256,11 @@ def lista(request):
                    "policlinico": d.get("policlinico"), "estado": d["estado"] or None}
     if pol_tens:
         filtros["policlinico"] = pol_tens
-    qs = repo.listar(**filtros).select_related("asistencia").order_by("cupo__fecha", "cupo__hora_inicio")
+    orden = request.GET.get("orden", "fecha")
+    campos = ORDEN_CITAS.get(orden.lstrip("-"), ORDEN_CITAS["fecha"])
+    if orden.startswith("-"):
+        campos = [f"-{c}" for c in campos]
+    qs = repo.listar(**filtros).select_related("asistencia").order_by(*campos, "cupo__fecha", "cupo__hora_inicio")
     pagina = Paginator(qs, 50).get_page(request.GET.get("page"))
     return render(request, "citas/lista.html", {"form": form, "pagina": pagina,
                                                 "solo_lectura": not roles.tiene_rol(request.user, roles.TENS)})

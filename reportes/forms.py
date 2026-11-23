@@ -37,7 +37,7 @@ class FiltroReporteForm(BootstrapFormMixin, forms.Form):
     edad = forms.ChoiceField(choices=[("", "Todas")] + [(k, t) for k, t, _, _ in TRAMOS_EDAD], required=False,
                              label="Tramo de edad")
     nacionalidad = forms.ChoiceField(choices=[], required=False)
-    cesfam = forms.ChoiceField(choices=SI_NO, required=False, label="Inscrito en CESFAM")
+
     responsable = forms.ChoiceField(choices=SI_NO, required=False, label="Con adulto responsable")
 
     def __init__(self, *args, **kwargs):
@@ -58,9 +58,9 @@ class FiltroReporteForm(BootstrapFormMixin, forms.Form):
 class FiltroPacientesForm(FiltroReporteForm):
     """Filtros adicionales del reporte de pacientes."""
 
-    ORDENES = [("nombre", "Nombre"), ("-n_citas", "Más citas"), ("-n_inasistencias", "Más inasistencias"),
-               ("-ultima_atencion", "Atención más reciente"), ("proxima_cita", "Próxima cita"),
-               ("-fecha_registro", "Registro más reciente")]
+    CAMPOS_ORDEN = ["nombre", "edad", "nacionalidad", "n_citas", "n_asistidas", "n_inasistencias", "n_canceladas",
+                    "ultima_atencion", "proxima_cita", "fecha_registro"]
+    ORDENES = [(f"{s}{c}", f"{s}{c}") for c in CAMPOS_ORDEN for s in ("", "-")]
 
     q = forms.CharField(required=False, label="Nombre o RUT")
     en_espera = forms.ChoiceField(choices=SI_NO, required=False, label="En lista de espera")

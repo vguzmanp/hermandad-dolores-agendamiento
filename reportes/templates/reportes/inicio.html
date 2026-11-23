@@ -25,7 +25,7 @@
   <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.atendidos }}</div><div class="etiqueta">Atendidos (asistieron)</div></div></div>
   <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.adultos }} / {{ datos.ninos }}</div><div class="etiqueta">Adultos / menores de 18</div></div></div>
   <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.mujeres }} % / {{ datos.hombres }} %</div><div class="etiqueta">Mujeres / hombres</div></div></div>
-  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.cesfam }} %</div><div class="etiqueta">Inscritos en CESFAM</div></div></div>
+  <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.con_responsable }}</div><div class="etiqueta">Con adulto responsable</div></div></div>
   <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ datos.inasistencia|floatformat:1 }} %</div><div class="etiqueta">Inasistencia</div></div></div>
 </div>
 <div class="row g-3 mb-3">
@@ -129,15 +129,15 @@
   <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ resumen.canceladas }}</div><div class="etiqueta">Canceladas</div></div></div>
   <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ resumen.en_espera }}</div><div class="etiqueta">En lista de espera</div></div></div>
 </div>
-<div class="tabla-hd"><div class="table-responsive"><table class="table">
-  <thead><tr><th>Paciente</th><th>Edad · sexo</th><th>Nacionalidad</th><th>CESFAM</th><th>Citas</th><th>Asistidas</th><th>Inasist.</th><th>Canceladas</th><th>Última atención</th><th>Próxima cita</th><th></th></tr></thead>
+<div class="tabla-hd"><div class="table-responsive"><table class="table orden-servidor">
+  <thead><tr>{% th_orden "Paciente" "nombre" %}{% th_orden "Edad · sexo" "edad" True %}{% th_orden "Nacionalidad" "nacionalidad" %}{% th_orden "Citas" "n_citas" True %}{% th_orden "Asistidas" "n_asistidas" True %}{% th_orden "Inasist." "n_inasistencias" True %}{% th_orden "Canceladas" "n_canceladas" True %}{% th_orden "Última atención" "ultima_atencion" True %}{% th_orden "Próxima cita" "proxima_cita" %}<th></th></tr></thead>
   <tbody>
   {% for p in pagina %}
   <tr>
     <td><div class="celda-principal">{{ p.nombre }}</div><div class="celda-sec">RUT {{ p.rut|rut }}{% if p.en_espera %} · <span class="pill pill-azul">En espera</span>{% endif %}</div></td>
     <td>{{ p.edad }} · {{ p.get_sexo_display }}{% if p.adulto_responsable %}<div class="celda-sec">Con adulto responsable</div>{% endif %}</td>
     <td>{{ p.nacionalidad }}</td>
-    <td>{% if p.inscrito_cesfam %}<span class="pill pill-verde">Sí</span>{% else %}<span class="pill pill-naranjo">No</span>{% endif %}</td>
+
     <td class="fw-bold">{{ p.n_citas }}</td>
     <td>{{ p.n_asistidas }}</td>
     <td>{% if p.n_inasistencias %}<span class="pill pill-rojo">{{ p.n_inasistencias }}</span>{% else %}0{% endif %}</td>
@@ -146,7 +146,7 @@
     <td class="text-nowrap">{{ p.proxima_cita|date:"d/m/Y"|default:"—" }}</td>
     <td class="text-end"><a class="btn btn-suave btn-xs" href="{% url 'reportes:paciente' p.pk %}?{{ qs_hist }}{% if qs_hist %}&{% endif %}volver={{ request.get_full_path|urlencode }}">Ver historial</a></td>
   </tr>
-  {% empty %}<tr><td colspan="11" class="text-center text-gris py-4">No hay pacientes con estos filtros.</td></tr>
+  {% empty %}<tr><td colspan="10" class="text-center text-gris py-4">No hay pacientes con estos filtros.</td></tr>
   {% endfor %}
   </tbody>
 </table></div></div>

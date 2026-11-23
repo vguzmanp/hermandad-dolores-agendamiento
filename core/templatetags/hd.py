@@ -73,3 +73,20 @@ def pill_cita(cita):
 @register.filter
 def primer_nombre(nombre: str) -> str:
     return (nombre or "").split(" ")[0]
+
+
+@register.simple_tag(takes_context=True)
+def th_orden(context, etiqueta, campo, primero_desc=False):
+    """Encabezado que ordena una tabla paginada en el servidor (parámetro ?orden=)."""
+    from django.utils.html import format_html
+    request = context["request"]
+    actual = request.GET.get("orden", "")
+    q = request.GET.copy()
+    q.pop("page", None)
+    if actual == campo:
+        dir_actual, q["orden"] = "asc", f"-{campo}"
+    elif actual == f"-{campo}":
+        dir_actual, q["orden"] = "desc", campo
+    else:
+        dir_actual, q["orden"] = "", f"-{campo}" if primero_desc else campo
+    return format_html('<th class="th-servidor" data-dir="{}"><a href="?{}">{}</a></th>', dir_actual, q.urlencode(), etiqueta)

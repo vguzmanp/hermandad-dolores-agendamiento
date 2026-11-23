@@ -162,6 +162,19 @@ def aviso_cancelacion(cita: Cita) -> Aviso:
     return Aviso(Tipo.CANCELACION, f"Hola {_primer_nombre(cita.paciente)}. {texto}", "Hora cancelada", texto)
 
 
+def aviso_bloqueo(cita: Cita) -> Aviso:
+    """La hora se bloqueó (el profesional no atenderá): la cita queda cancelada."""
+    nombre = _primer_nombre(cita.paciente)
+    reservar = f"{settings.SITIO_PUBLICO_URL.rstrip('/')}/reservar/"
+    whatsapp = (f"Hola {nombre}, lamentamos avisarte que tu hora de {_quien(cita)} del {_cuando(cita)} fue "
+                f"cancelada porque el profesional no podrá atender en ese horario.\n\n"
+                f"Puedes reservar una nueva hora aquí: {reservar}")
+    correo = (f"Hola {nombre}:\n\nLamentamos avisarte que tu hora fue cancelada porque el profesional no podrá "
+              f"atender en ese horario.\n\n{_ficha(cita)}\n\n"
+              f"Puedes reservar una nueva hora aquí: {reservar}\no comunicarte con el policlínico.")
+    return Aviso(Tipo.CANCELACION, whatsapp, f"Tu hora del {fecha_larga(cita.cupo.fecha)} fue cancelada", correo)
+
+
 def aviso_cambio(cita: Cita) -> Aviso:
     texto = f"Tu nueva hora es el {_cuando(cita)} con {cita.cupo.agenda.profesional.nombre}."
     return Aviso(Tipo.CAMBIO, f"Hola {_primer_nombre(cita.paciente)}. {texto}\n{link_cita(cita)}", "Hora cambiada",

@@ -128,6 +128,15 @@ class AgendamientoService:
             self.notificador.enviar(cita.paciente, avisos.aviso_cancelacion(cita), cita, usuario)
         return cancelada
 
+    def cancelar_por_bloqueo(self, cita: Cita, usuario, motivo: str = "") -> Cita:
+        """La hora se bloqueó: se cancela la cita y se avisa al paciente para que reserve otra."""
+        roles.exigir_rol(usuario, roles.ADMINISTRACION, roles.TENS)
+        _exigir_policlinico(usuario, cita.cupo)
+        with transaction.atomic():
+            cancelada = self.repo.cancelar(cita.pk, usuario, f"Hora bloqueada{': ' + motivo if motivo else ''}")
+            self.notificador.enviar(cancelada.paciente, avisos.aviso_bloqueo(cancelada), cancelada, usuario)
+        return cancelada
+
     def reagendar(self, cita: Cita, nuevo_cupo: Cupo, usuario=None, por_paciente: bool = False,
                   es_sobrecupo: bool = False) -> Cita:
         """

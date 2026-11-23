@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from django.core.exceptions import PermissionDenied
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
@@ -9,10 +9,10 @@ from . import roles as r
 
 
 def home(request):
-    """Portada pública (¿Cómo quieres entrar?) o el inicio según el rol."""
+    """Sin sesión: el login. Con sesión: el inicio según el rol."""
     u = request.user
     if not u.is_authenticated:
-        return render(request, "core/portada.html")
+        return redirect("login")
     if r.tiene_rol(u, r.TENS) and not (u.is_superuser or r.tiene_rol(u, r.ADMINISTRACION)):
         return inicio_tens(request)
     if r.tiene_rol(u, r.ADMINISTRACION):

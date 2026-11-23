@@ -11,6 +11,7 @@ de la demostración.
 import random
 from datetime import date, datetime, time, timedelta
 
+from django.conf import settings
 from django.contrib.auth.models import Group, User
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -210,6 +211,7 @@ class Command(BaseCommand):
             return
         self.cargar_historial()
         self.cargar_citas_proximas()
+        self.cargar_proximos_dias()
         self.cargar_lista_espera()
         self.cargar_documentos(tens_central)
 
@@ -408,6 +410,44 @@ class Command(BaseCommand):
         if self.tens_avisos:
             self.stdout.write(f"  Avisos del próximo día hábil en todos los estados: entrar como "
                               f"«{self.tens_avisos.username}» ({self.tens_avisos.policlinico_tens.nombre})")
+
+    def cargar_proximos_dias(self, dias_habiles: int = 5, ocupacion: float = .5):
+        """Ocupa cerca de la mitad de las horas libres de los próximos días hábiles (sin enviar avisos)."""
+        fechas, d = [], self.hoy
+        while len(fechas) < dias_habiles:
+            d = proximo_habil(d)
+            fechas.append(d)
+        pacientes = list(Paciente.objects.all())
+        ocupado = set(Cita.objects.filter(cupo__fecha__in=fechas, estado__in=Cita.VIGENTES)
+                      .values_list("paciente_id", "cupo__fecha", "cupo__hora_inicio"))
+        cupos = (Cupo.objects.filter(fecha__in=fechas, bloqueado=False).select_related("agenda")
+                 .exclude(citas__estado__in=Cita.VIGENTES).order_by("fecha", "hora_inicio"))
+        aviso_hasta = self.hoy + timedelta(days=settings.CITA_DIAS_AVISO_DEFECTO)
+        citas = []
+        for cupo in cupos:
+            if self.rnd.random() > ocupacion:
+                continue
+            candidatos = [p for p in self.rnd.sample(pacientes, 8)
+                          if (p.pk, cupo.fecha, cupo.hora_inicio) not in ocupado]
+            if not candidatos:
+                continue
+            p = candidatos[0]
+            ocupado.add((p.pk, cupo.fecha, cupo.hora_inicio))
+            creada = timezone.now() - timedelta(days=self.rnd.randint(2, 15))
+            datos = {"estado": "agendada"}
+            if cupo.fecha <= aviso_hasta:  # ya se envió el recordatorio: algunos respondieron
+                r = self.rnd.random()
+                datos = {"estado": "confirmada" if r < .6 else ("sin_respuesta" if r < .75 else "agendada"),
+                         "recordatorio_enviado_en": timezone.now() - timedelta(hours=self.rnd.randint(2, 30))}
+                if datos["estado"] != "agendada":
+                    datos["respuesta_origen"] = "" if datos["estado"] == "sin_respuesta" else \
+                        self.rnd.choice(["paciente", "paciente", "tens"])
+                    datos["respuesta_en"] = datos["recordatorio_enviado_en"] + timedelta(hours=3)
+            citas.append(Cita(cupo=cupo, paciente=p, creada_por=self.tens_de(cupo), creada_en=creada,
+                              canal=self.rnd.choice(["presencial", "telefono", "telefono", "whatsapp", "web"]), **datos))
+        Cita.objects.bulk_create(citas)
+        self.stdout.write(f"  Próximos {dias_habiles} días hábiles ({fechas[0]:%d/%m} al {fechas[-1]:%d/%m}): "
+                          f"{len(citas)} citas más")
 
     def cargar_lista_espera(self):
         """Listas de espera por especialidad y policlínico (nunca por profesional)."""

@@ -7,7 +7,7 @@
 {% block cuerpo %}
 <div class="row justify-content-center py-4">
   <div class="col-md-6 col-lg-5">
-    <h1 class="titulo-pagina">{% if request.GET.rol == "tens" %}Entrar como TENS/TONS{% elif request.GET.rol == "admin" %}Entrar como Administración{% else %}Ingresar{% endif %}</h1>
+    <h1 class="titulo-pagina">Ingresar</h1>
 
     <div class="tarjeta tarjeta-cuerpo">
       {% if form.errors %}<div class="aviso aviso-rojo mb-3">Usuario o contraseña incorrectos.</div>{% endif %}
@@ -28,7 +28,10 @@
     {% if debug_demo %}
     <p class="small text-gris mt-3">Demo · contraseña <code>demo1234</code>: <code>administracion</code>, <code>admin</code> y un usuario por policlínico: <code>san_lazaro</code>, <code>santa_rosa</code>, <code>los_olivos</code>, <code>el_carmen</code>, <code>buen_samaritano</code>, <code>santa_clara</code>, <code>telemedicina</code>.</p>
     {% endif %}
-    <a class="btn btn-gris mt-2" href="/">Volver</a>
+    <div class="tarjeta tarjeta-cuerpo mt-4 text-center">
+      <div class="fw-bold mb-2">¿Eres paciente?</div>
+      <a class="btn btn-suave w-100" href="{% url 'portal:inicio' %}">Reservar una hora</a>
+    </div>
   </div>
 </div>
 {% endblock %}

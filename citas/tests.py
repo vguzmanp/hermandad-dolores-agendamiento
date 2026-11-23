@@ -361,3 +361,29 @@ class NotificadorCorreoTests(TestCase):
         envios = NotificadorCorreo().enviar(self.paciente, self.aviso)
         self.assertEqual(len(mail.outbox), 0)
         self.assertEqual([e.canal for e in envios], [MensajeEnviado.Canal.WHATSAPP])
+
+
+class BloqueoConCitaTests(CitasBase):
+    """Bloquear una hora con cita: la cita se cancela y se avisa al paciente."""
+
+    def test_bloquear_hora_con_cita_cancela_y_avisa(self):
+        cita = self.agendar(self.p1)
+        cupo = AgendaService().bloquear_cupo(self.cupo, "Licencia médica", self.tens)
+        cita.refresh_from_db()
+        self.assertTrue(cupo.bloqueado)
+        self.assertEqual(cita.estado, Cita.Estado.CANCELADA)
+        self.assertIn("Hora bloqueada", cita.motivo_cancelacion)
+        self.assertEqual([c.pk for c in cupo.citas_canceladas], [cita.pk])
+        aviso = MensajeEnviado.objects.filter(cita=cita, tipo=MensajeEnviado.Tipo.CANCELACION).first()
+        self.assertIsNotNone(aviso)
+        self.assertIn("/reservar/", aviso.mensaje)
+
+    def test_bloquear_hora_con_sobrecupo_cancela_las_dos(self):
+        cita = self.agendar(self.p1)
+        self.confirmacion.marcar_sin_respuesta(cita, self.tens)
+        sobre = self.servicio.agendar_sobrecupo(self.p2, self.cupo, self.tens).citas[0]
+        bloqueados, canceladas = AgendaService().bloquear_varios([self.cupo], "", self.tens)
+        self.assertEqual((bloqueados, canceladas), (1, 2))
+        for c in (cita, sobre):
+            c.refresh_from_db()
+            self.assertEqual(c.estado, Cita.Estado.CANCELADA)

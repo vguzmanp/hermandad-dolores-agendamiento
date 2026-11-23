@@ -24,7 +24,7 @@
       <div class="col-sm-6 col-lg-2"><label class="form-label">{{ form.sexo.label }}</label>{{ form.sexo }}</div>
       <div class="col-sm-6 col-lg-2"><label class="form-label">{{ form.edad.label }}</label>{{ form.edad }}</div>
       <div class="col-sm-6 col-lg-3"><label class="form-label">{{ form.nacionalidad.label }}</label>{{ form.nacionalidad }}</div>
-      <div class="col-sm-6 col-lg-2"><label class="form-label">{{ form.cesfam.label }}</label>{{ form.cesfam }}</div>
+
       <div class="col-sm-6 col-lg-3"><label class="form-label">{{ form.responsable.label }}</label>{{ form.responsable }}</div>
       {% endif %}
       {% if form.q %}
@@ -32,7 +32,7 @@
       <div class="col-sm-6 col-lg-3"><label class="form-label">{{ form.q.label }}</label>{{ form.q }}</div>
       <div class="col-sm-6 col-lg-2"><label class="form-label">{{ form.en_espera.label }}</label>{{ form.en_espera }}</div>
       <div class="col-sm-6 col-lg-2"><label class="form-label">{{ form.con_inasistencias.label }}</label>{{ form.con_inasistencias }}</div>
-      <div class="col-sm-6 col-lg-2"><label class="form-label">{{ form.orden.label }}</label>{{ form.orden }}</div>
+      {% if request.GET.orden %}<input type="hidden" name="orden" value="{{ request.GET.orden }}">{% endif %}
       <div class="col-sm-12 col-lg-3 d-flex align-items-end"><div class="form-check">{{ form.sin_citas }}<label class="form-check-label" for="{{ form.sin_citas.id_for_label }}">{{ form.sin_citas.label }}</label></div></div>
       {% endif %}
     </div>

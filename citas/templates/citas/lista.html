@@ -15,11 +15,12 @@
   {% if form.profesional %}<div class="col-md-3"><label class="form-label">Profesional</label>{{ form.profesional }}</div>{% endif %}
   {% if form.policlinico %}<div class="col-md-2"><label class="form-label">Policlínico</label>{{ form.policlinico }}</div>{% endif %}
   <div class="col-md-2"><label class="form-label">Estado</label>{{ form.estado }}</div>
+  {% if request.GET.orden %}<input type="hidden" name="orden" value="{{ request.GET.orden }}">{% endif %}
   <div class="col-md-1"><button class="btn btn-primary w-100">Filtrar</button></div>
 </form>
 <div class="tabla-hd"><div class="table-responsive">
-<table class="table">
-  <thead><tr><th>Fecha</th><th>Hora</th><th>Paciente</th><th>Profesional</th><th>Policlínico</th><th>Canal</th><th>Estado</th><th></th></tr></thead>
+<table class="table orden-servidor">
+  <thead><tr>{% th_orden "Fecha" "fecha" %}{% th_orden "Hora" "hora" %}{% th_orden "Paciente" "paciente" %}{% th_orden "Profesional" "profesional" %}{% th_orden "Policlínico" "policlinico" %}{% th_orden "Canal" "canal" %}{% th_orden "Estado" "estado" %}<th></th></tr></thead>
   <tbody>
   {% for c in pagina %}
   <tr>

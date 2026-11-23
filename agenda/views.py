@@ -115,7 +115,7 @@ def calendario(request):
         qs = Cupo.objects.filter(agenda__profesional=prof, fecha__range=(dias[0], dias[-1]))
         if pol_tens:
             qs = qs.filter(agenda__policlinico=pol_tens)
-        cupos = list(qs.select_related("agenda__policlinico").prefetch_related("citas"))
+        cupos = list(qs.select_related("agenda__policlinico").prefetch_related("citas__paciente"))
     if not any(c.fecha.weekday() >= 5 for c in cupos):
         dias = dias[:5]
     horas = sorted({c.hora_inicio for c in cupos})
@@ -125,10 +125,12 @@ def calendario(request):
         celdas = []
         for d in dias:
             c = por_celda.get((d, h))
-            estado = None
+            estado, pacientes = None, ""
             if c:
                 estado = "bloqueado" if c.bloqueado else ("con_cita" if c.citas_vigentes else "disponible")
-            celdas.append({"cupo": c, "estado": estado, "pasado": d < hoy})
+                pacientes = ", ".join(x.paciente.nombre + (" (sobrecupo)" if x.es_sobrecupo else "")
+                                      for x in c.citas_vigentes)
+            celdas.append({"cupo": c, "estado": estado, "pasado": d < hoy, "pacientes": pacientes})
         filas.append({"hora": h, "celdas": celdas})
     return render(request, "agenda/calendario.html", {
         "especialidades": especialidades, "esp": esp, "profesionales": profesionales, "prof": prof,
@@ -151,10 +153,11 @@ def calendario_accion(request):
     if not cupos:
         messages.error(request, "Selecciona uno o más bloques.")
     elif accion == "bloquear":
-        b, o = servicio.bloquear_varios(cupos, request.POST.get("motivo", "").strip(), request.user)
+        b, canceladas = servicio.bloquear_varios(cupos, request.POST.get("motivo", "").strip(), request.user)
         messages.success(request, f"{b} hora{'s' if b != 1 else ''} bloqueada{'s' if b != 1 else ''}", extra_tags="toast")
-        if o:
-            messages.warning(request, f"{o} bloque(s) con cita no se bloquearon: la cita sigue ocupando la hora.")
+        if canceladas:
+            messages.warning(request, f"Se cancelaron {canceladas} cita{'s' if canceladas != 1 else ''} y se avisó "
+                                      f"a {'los pacientes' if canceladas != 1 else 'el paciente'}.")
     elif accion == "liberar":
         maximo = int(request.POST.get("de_a_poco") or 0) or None
         n = servicio.liberar_varios(cupos, request.user, maximo)

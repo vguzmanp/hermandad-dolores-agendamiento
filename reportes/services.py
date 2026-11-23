@@ -37,7 +37,6 @@ class Filtros:
     sexo: str = ""
     edad: str = ""
     nacionalidad: str = ""
-    cesfam: str = ""
     responsable: str = ""
     extra: dict = field(default_factory=dict)  # filtros propios del reporte de pacientes
 
@@ -61,7 +60,7 @@ class Filtros:
                 res.append(f"{nombre}: {textos[campo].get(v, v)}")
         if self.nacionalidad:
             res.append(f"Nacionalidad: {self.nacionalidad}")
-        for campo, nombre in (("sobrecupo", "Sobrecupo"), ("cesfam", "CESFAM"), ("responsable", "Adulto responsable")):
+        for campo, nombre in (("sobrecupo", "Sobrecupo"), ("responsable", "Adulto responsable")):
             v = getattr(self, campo)
             if v:
                 res.append(f"{nombre}: {'sí' if v == 'si' else 'no'}")
@@ -107,7 +106,7 @@ def construir_filtros(datos: dict | None = None, hoy: date | None = None) -> Fil
     else:
         desde, hasta = _restar_meses(hoy, MESES_PERIODO.get(periodo, 3) - 1), hoy
     campos = {k: d.get(k) or "" for k in ("estado", "asistencia", "canal", "sobrecupo", "sexo", "edad",
-                                            "nacionalidad", "cesfam", "responsable")}
+                                            "nacionalidad", "responsable")}
     extra = {k: d.get(k) for k in ("q", "en_espera", "con_inasistencias", "sin_citas", "orden") if k in d}
     return Filtros(desde, hasta, _etiqueta(desde, hasta), d.get("policlinico"), d.get("especialidad"),
                    d.get("profesional"), extra=extra, **campos)
@@ -156,8 +155,7 @@ def q_paciente(f: Filtros, prefijo: str = "", hoy: date | None = None) -> Q:
         q &= Q(**{f"{p}sexo": f.sexo})
     if f.nacionalidad:
         q &= Q(**{f"{p}nacionalidad": f.nacionalidad})
-    if f.cesfam:
-        q &= Q(**{f"{p}inscrito_cesfam": f.cesfam == "si"})
+
     if f.responsable:
         q &= Q(**{f"{p}adulto_responsable__isnull": f.responsable != "si"})
     tramo = next(((a, b) for k, _, a, b in TRAMOS_EDAD if k == f.edad), None)
@@ -228,7 +226,7 @@ class ReporteService:
             "inasistencia": _pct(len(no_asistio), len(asistio) + len(no_asistio)),
             "mujeres": round(_pct(sum(1 for p in pacientes if p.sexo == "F"), n)),
             "hombres": round(_pct(sum(1 for p in pacientes if p.sexo == "M"), n)),
-            "cesfam": round(_pct(sum(1 for p in pacientes if p.inscrito_cesfam), n)),
+
             "con_responsable": sum(1 for p in pacientes if hasattr(p, "adulto_responsable")),
             "sexo": self._barras(sexo),
             "edades": self._barras(edades, [t for _, t, _, _ in TRAMOS_EDAD]),
@@ -339,11 +337,12 @@ class ReporteService:
         elif x.get("con_inasistencias") == "no":
             qs = qs.filter(n_inasistencias=0)
         orden = x.get("orden") or "nombre"
-        campo = orden.lstrip("-")
-        if campo in ("ultima_atencion", "proxima_cita"):  # los pacientes sin fecha van al final
-            expr = F(campo).desc(nulls_last=True) if orden.startswith("-") else F(campo).asc(nulls_last=True)
-            return qs.order_by(expr, "nombre")
-        return qs.order_by(orden, "nombre")
+        desc, campo = orden.startswith("-"), orden.lstrip("-")
+        if campo == "edad":  # más edad = nacimiento más antiguo
+            campo, desc = "fecha_nacimiento", not desc
+        # los pacientes sin fecha van al final
+        expr = F(campo).desc(nulls_last=True) if desc else F(campo).asc(nulls_last=True)
+        return qs.order_by(expr, "nombre")
 
     def resumen_pacientes(self, qs) -> dict:
         filas = list(qs.values("n_citas", "n_asistidas", "n_inasistencias", "n_canceladas", "en_espera"))
@@ -360,13 +359,13 @@ class ReporteService:
         w = csv.writer(salida, delimiter=";")
         w.writerow([f"Período: {f.etiqueta}"] + f.activos)
         w.writerow([])
-        w.writerow(["Nombre", "RUT", "Edad", "Sexo", "Nacionalidad", "Celular", "Correo", "Inscrito CESFAM",
+        w.writerow(["Nombre", "RUT", "Edad", "Sexo", "Nacionalidad", "Celular", "Correo",
                     "Adulto responsable", "Citas", "Asistidas", "Inasistencias", "Canceladas", "Última atención",
                     "Próxima cita", "En lista de espera"])
         for p in self.pacientes(f):
             resp = getattr(p, "adulto_responsable", None)
             w.writerow([p.nombre, p.rut_formateado, p.edad, p.get_sexo_display(), p.nacionalidad, p.celular, p.correo,
-                        "Sí" if p.inscrito_cesfam else "No", f"{resp.nombre} ({resp.parentesco})" if resp else "",
+                        f"{resp.nombre} ({resp.parentesco})" if resp else "",
                         p.n_citas, p.n_asistidas, p.n_inasistencias, p.n_canceladas,
                         p.ultima_atencion.strftime("%d/%m/%Y") if p.ultima_atencion else "",
                         p.proxima_cita.strftime("%d/%m/%Y") if p.proxima_cita else "",

@@ -34,9 +34,9 @@ class LoginYRolesTests(TestCase):
         self.assertEqual(Policlinico.objects.count(), 7)
 
     def test_portada_publica_y_secciones_protegidas(self):
-        resp = self.client.get(reverse("home"))
-        self.assertContains(resp, "¿Cómo quieres entrar?")
-        self.assertNotContains(resp, "profesional de la Hermandad")
+        resp = self.client.get(reverse("home"), follow=True)
+        self.assertContains(resp, 'name="password"')
+        self.assertContains(resp, reverse("portal:inicio"))
         resp = self.client.get(reverse("citas:agendar"))
         self.assertRedirects(resp, reverse("login") + "?next=/citas/agendar/")
 

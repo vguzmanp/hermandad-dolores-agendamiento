@@ -75,7 +75,7 @@
   <thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Acción</th><th>Detalle</th></tr></thead>
   <tbody>
   {% for o in historial %}
-  <tr><td class="small">{{ o.fecha|date:"Y-m-d H:i" }}</td><td class="small">{{ o.quien }}</td><td class="small">{{ o.get_accion_display }}</td><td class="small">{{ o.detalle }}</td></tr>
+  <tr><td class="small" data-orden="{{ o.fecha|date:'U' }}">{{ o.fecha|date:"Y-m-d H:i" }}</td><td class="small">{{ o.quien }}</td><td class="small">{{ o.get_accion_display }}</td><td class="small">{{ o.detalle }}</td></tr>
   {% empty %}<tr><td colspan="4" class="text-center text-gris py-3">Sin operaciones.</td></tr>
   {% endfor %}
   </tbody>

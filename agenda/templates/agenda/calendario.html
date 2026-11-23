@@ -24,8 +24,8 @@
                 <span class="celda-cupo {{ c.estado }} pasado">{% if c.estado == "con_cita" %}Con cita{% elif c.estado == "bloqueado" %}Bloqueado{% else %}Disponible{% endif %}</span>
                 {% else %}
                 <div><input type="checkbox" class="btn-check sel-cupo" name="cupo" value="{{ c.cupo.pk }}" id="cu{{ c.cupo.pk }}"
-                       data-texto="{{ c.cupo.fecha|date:'D d M'|lower }} · {{ c.cupo.hora_inicio|time:'H:i' }}">
-                <label class="celda-cupo {{ c.estado }}" for="cu{{ c.cupo.pk }}" title="{{ c.cupo.agenda.policlinico }}{% if c.cupo.motivo_bloqueo %} · {{ c.cupo.motivo_bloqueo }}{% endif %}">{% if c.estado == "con_cita" %}Con cita{% elif c.estado == "bloqueado" %}Bloqueado{% else %}Disponible{% endif %}</label></div>
+                       data-texto="{{ c.cupo.fecha|date:'D d M'|lower }} · {{ c.cupo.hora_inicio|time:'H:i' }}"{% if c.estado == "con_cita" %} data-pacientes="{{ c.pacientes }}"{% endif %}>
+                <label class="celda-cupo {{ c.estado }}" for="cu{{ c.cupo.pk }}" title="{% if c.estado == "con_cita" %}{{ c.pacientes }} · {% endif %}{{ c.cupo.agenda.policlinico }}{% if c.cupo.motivo_bloqueo %} · {{ c.cupo.motivo_bloqueo }}{% endif %}">{% if c.estado == "con_cita" %}Con cita{% elif c.estado == "bloqueado" %}Bloqueado{% else %}Disponible{% endif %}</label></div>
                 {% endif %}
               {% else %}<span class="celda-cupo vacio"></span>{% endif %}
             {% endfor %}
@@ -41,7 +41,7 @@
         <h2 class="h5">Bloques seleccionados</h2>
         <div class="small text-gris mb-3" id="seleccion">Ninguno.</div>
         <input class="form-control mb-2" name="motivo" placeholder="Motivo del bloqueo (opcional)">
-        <button class="btn btn-suave-rojo w-100 btn-lg-hd mb-2" name="accion" value="bloquear">Bloquear horas</button>
+        <button class="btn btn-suave-rojo w-100 btn-lg-hd mb-2" name="accion" value="bloquear" id="btn-bloquear">Bloquear horas</button>
         <button class="btn btn-primary w-100 btn-lg-hd mb-3" name="accion" value="liberar">Liberar horas</button>
         <label class="form-label">Liberar de a poco</label>
         <select class="form-select" name="de_a_poco">
@@ -54,7 +54,7 @@
         <hr>
         <h3 class="h6">Leyenda</h3>
         <div class="small mb-2"><span class="leyenda-cuadro" style="background:#e3f4e8; border:1px solid #b8dfc5"></span>Disponible</div>
-        <div class="small mb-2"><span class="leyenda-cuadro" style="background:#e8f0fd; border:1px solid #9cc0f2"></span>Con cita (sigue ocupada)</div>
+        <div class="small mb-2"><span class="leyenda-cuadro" style="background:#e8f0fd; border:1px solid #9cc0f2"></span>Con cita</div>
         <div class="small"><span class="leyenda-cuadro" style="background:#e7eaf0; border:1px solid #c7cdd8"></span>Bloqueado</div>
       </div>
     </div>
@@ -64,10 +64,22 @@
 {% block scripts %}
 <script>
 const sel = document.getElementById("seleccion");
+const escapar = t => t.replace(/[&<>"]/g, x => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[x]));
 function actualizar() {
-  const marcados = [...document.querySelectorAll(".sel-cupo:checked")].map(c => c.dataset.texto);
-  sel.innerHTML = marcados.length ? marcados.join("<br>") + ` <br><strong>(${marcados.length} bloque${marcados.length > 1 ? "s" : ""})</strong>` : "Ninguno.";
+  const marcados = [...document.querySelectorAll(".sel-cupo:checked")];
+  sel.innerHTML = marcados.length
+    ? marcados.map(c => escapar(c.dataset.texto) + (c.dataset.pacientes ? ` · <strong>${escapar(c.dataset.pacientes)}</strong>` : "")).join("<br>")
+      + ` <br><strong>(${marcados.length} bloque${marcados.length > 1 ? "s" : ""})</strong>`
+    : "Ninguno.";
 }
 document.querySelectorAll(".sel-cupo").forEach(c => c.addEventListener("change", actualizar));
+document.getElementById("btn-bloquear").addEventListener("click", e => {
+  const conCita = [...document.querySelectorAll(".sel-cupo:checked")].filter(c => c.dataset.pacientes);
+  if (!conCita.length) return;
+  const lista = conCita.map(c => `• ${c.dataset.texto} · ${c.dataset.pacientes}`).join("\n");
+  if (!confirm(`Estas horas tienen cita:\n\n${lista}\n\nSi las bloqueas, las citas se cancelan y se avisa a cada paciente. ¿Bloquear?`)) {
+    e.preventDefault();
+  }
+});
 </script>
 {% endblock %}

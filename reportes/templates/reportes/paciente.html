@@ -22,7 +22,7 @@
       <dt class="col-5">Celular</dt><dd class="col-7">{{ p.celular }}</dd>
       <dt class="col-5">Correo</dt><dd class="col-7">{{ p.correo|default:"—" }}</dd>
       <dt class="col-5">Dirección</dt><dd class="col-7">{{ p.direccion }}</dd>
-      <dt class="col-5">CESFAM</dt><dd class="col-7">{% if p.inscrito_cesfam %}Inscrito{% if p.cesfam %} · {{ p.cesfam }}{% endif %}{% else %}<span class="pill pill-naranjo">Sin inscripción</span>{% endif %}</dd>
+      <dt class="col-5">CESFAM</dt><dd class="col-7">{{ p.cesfam|default:"—" }}</dd>
       {% if p.adulto_responsable %}
       <dt class="col-5">Adulto responsable</dt><dd class="col-7">{{ p.adulto_responsable.nombre }} ({{ p.adulto_responsable.parentesco }}) · {{ p.adulto_responsable.celular }}</dd>
       {% endif %}

@@ -67,17 +67,29 @@ class AgendaService:
 
     @transaction.atomic
     def bloquear_cupo(self, cupo: Cupo, motivo: str, usuario) -> Cupo:
+        """
+        Bloquea la hora. Si tiene citas, se cancelan y se avisa a cada paciente.
+        El cupo devuelto trae en `citas_canceladas` las citas que se cancelaron.
+        """
+        from citas.models import Cita
+        from citas.services import AgendamientoService
+
         roles.exigir_rol(usuario, roles.ADMINISTRACION, roles.TENS)
         # Se bloquea la fila para que no se agende una cita mientras se bloquea el cupo.
         cupo = Cupo.objects.select_related("agenda").select_for_update(of=("self",)).get(pk=cupo.pk)
         roles.exigir_policlinico(usuario, cupo.agenda.policlinico_id)
-        if cupo.citas_vigentes:
-            raise ReglaNegocioError(
-                "El cupo tiene citas vigentes; deben cancelarse antes de bloquearlo.", "AGENDA"
-            )
+        # primero el sobrecupo, para que no pase a ser la cita normal del cupo
+        citas = list(Cita.objects.filter(cupo=cupo, estado__in=Cita.VIGENTES)
+                     .select_related("paciente", "cupo__agenda__profesional__especialidad",
+                                     "cupo__agenda__policlinico")
+                     .order_by("-es_sobrecupo"))
+        agendamiento = AgendamientoService()
+        canceladas = [agendamiento.cancelar_por_bloqueo(c, usuario, motivo) for c in citas]
         cupo.bloqueado = True
         cupo.motivo_bloqueo = motivo or "Hora bloqueada"
-        return self.cupos.guardar(cupo)
+        cupo = self.cupos.guardar(cupo)
+        cupo.citas_canceladas = canceladas
+        return cupo
 
     def liberar_cupo(self, cupo: Cupo, usuario) -> Cupo:
         roles.exigir_rol(usuario, roles.ADMINISTRACION, roles.TENS)
@@ -88,34 +100,23 @@ class AgendaService:
 
     @transaction.atomic
     def bloquear_dia(self, agenda: Agenda, fecha: date, motivo: str, usuario) -> tuple[int, int]:
-        """Bloquea todos los cupos libres de la agenda en una fecha. Devuelve (bloqueados, omitidos)."""
+        """Bloquea todos los cupos de la agenda en una fecha. Devuelve (bloqueados, citas canceladas)."""
         roles.exigir_rol(usuario, roles.ADMINISTRACION)
-        bloqueados = omitidos = 0
-        for cupo in self.cupos.de_agenda(agenda, fecha, fecha).select_for_update(of=("self",)):
-            if cupo.bloqueado:
-                continue
-            if cupo.citas_vigentes:
-                omitidos += 1
-                continue
-            cupo.bloqueado, cupo.motivo_bloqueo = True, motivo or "Bloqueo de día completo"
-            self.cupos.guardar(cupo)
-            bloqueados += 1
-        return bloqueados, omitidos
+        cupos = [c for c in self.cupos.de_agenda(agenda, fecha, fecha) if not c.bloqueado]
+        return self.bloquear_varios(cupos, motivo or "Bloqueo de día completo", usuario)
 
     # ----------------------------------------------- operaciones por lote
+    @transaction.atomic
     def bloquear_varios(self, cupos, motivo: str, usuario) -> tuple[int, int]:
-        """Bloquea los cupos seleccionados. Los que tienen cita siguen ocupados (no se bloquean)."""
+        """Bloquea los cupos seleccionados. Devuelve (bloqueados, citas canceladas y avisadas)."""
         roles.exigir_rol(usuario, roles.ADMINISTRACION, roles.TENS)
-        bloqueados = omitidos = 0
+        bloqueados = canceladas = 0
         for cupo in cupos:
             if cupo.bloqueado:
                 continue
-            try:
-                self.bloquear_cupo(cupo, motivo, usuario)
-                bloqueados += 1
-            except ReglaNegocioError:
-                omitidos += 1
-        return bloqueados, omitidos
+            canceladas += len(self.bloquear_cupo(cupo, motivo, usuario).citas_canceladas)
+            bloqueados += 1
+        return bloqueados, canceladas
 
     def liberar_varios(self, cupos, usuario, maximo: int | None = None) -> int:
         """Libera los cupos bloqueados seleccionados; «de a poco» = como máximo `maximo` por vez."""
