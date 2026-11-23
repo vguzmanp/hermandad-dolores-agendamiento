@@ -81,11 +81,11 @@
 </div>
 <h2 class="h6">Por profesional</h2>
 <div class="tabla-hd mb-4"><div class="table-responsive"><table class="table">
-  <thead><tr><th>Profesional</th><th>Especialidad</th><th>Policlínico(s)</th><th>Horas pedidas</th><th>Pacientes</th><th>Atenciones</th><th>Inasistencia</th><th>Canceladas</th><th>Sobrecupos</th></tr></thead>
+  <thead><tr><th>Profesional</th><th>Especialidad</th><th>Policlínico(s)</th><th>Horas pedidas</th><th>Pacientes</th><th>% asistencia</th><th>Canceladas</th><th>Sobrecupos</th></tr></thead>
   <tbody>
   {% for x in datos.por_profesional %}
-  <tr><td class="celda-principal">{{ x.nombre }}</td><td>{{ x.detalle }}</td><td class="small">{{ x.policlinicos }}</td><td>{{ x.pedidas }}</td><td>{{ x.pacientes }}</td><td>{{ x.atenciones }}</td><td>{{ x.inasistencia }} %</td><td>{{ x.canceladas }}</td><td>{{ x.sobrecupos }}</td></tr>
-  {% empty %}<tr><td colspan="9" class="text-center text-gris py-4">Sin datos con estos filtros.</td></tr>
+  <tr><td class="celda-principal">{{ x.nombre }}</td><td>{{ x.detalle }}</td><td class="small">{{ x.policlinicos }}</td><td>{{ x.pedidas }}</td><td>{{ x.pacientes }}</td><td>{% if x.asistencia is None %}—{% else %}{{ x.asistencia }} %{% endif %}</td><td>{{ x.canceladas }}</td><td>{{ x.sobrecupos }}</td></tr>
+  {% empty %}<tr><td colspan="8" class="text-center text-gris py-4">Sin datos con estos filtros.</td></tr>
   {% endfor %}
   </tbody>
 </table></div></div>
@@ -93,11 +93,11 @@
   <div class="col-xl-6">
     <h2 class="h6">Por policlínico</h2>
     <div class="tabla-hd"><div class="table-responsive"><table class="table">
-      <thead><tr><th>Policlínico</th><th>Horas pedidas</th><th>Pacientes</th><th>Atenciones</th><th>Inasistencia</th><th>Canceladas</th></tr></thead>
+      <thead><tr><th>Policlínico</th><th>Horas pedidas</th><th>Pacientes</th><th>% asistencia</th><th>Canceladas</th></tr></thead>
       <tbody>
       {% for x in datos.por_policlinico %}
-      <tr><td class="celda-principal">{{ x.nombre }}</td><td>{{ x.pedidas }}</td><td>{{ x.pacientes }}</td><td>{{ x.atenciones }}</td><td>{{ x.inasistencia }} %</td><td>{{ x.canceladas }}</td></tr>
-      {% empty %}<tr><td colspan="6" class="text-center text-gris py-4">Sin datos con estos filtros.</td></tr>
+      <tr><td class="celda-principal">{{ x.nombre }}</td><td>{{ x.pedidas }}</td><td>{{ x.pacientes }}</td><td>{% if x.asistencia is None %}—{% else %}{{ x.asistencia }} %{% endif %}</td><td>{{ x.canceladas }}</td></tr>
+      {% empty %}<tr><td colspan="5" class="text-center text-gris py-4">Sin datos con estos filtros.</td></tr>
       {% endfor %}
       </tbody>
     </table></div></div>
@@ -105,11 +105,11 @@
   <div class="col-xl-6">
     <h2 class="h6">Por especialidad</h2>
     <div class="tabla-hd"><div class="table-responsive"><table class="table">
-      <thead><tr><th>Especialidad</th><th>Horas pedidas</th><th>Pacientes</th><th>Atenciones</th><th>Inasistencia</th><th>Canceladas</th></tr></thead>
+      <thead><tr><th>Especialidad</th><th>Horas pedidas</th><th>Pacientes</th><th>% asistencia</th><th>Canceladas</th></tr></thead>
       <tbody>
       {% for x in datos.por_especialidad %}
-      <tr><td class="celda-principal">{{ x.nombre }}</td><td>{{ x.pedidas }}</td><td>{{ x.pacientes }}</td><td>{{ x.atenciones }}</td><td>{{ x.inasistencia }} %</td><td>{{ x.canceladas }}</td></tr>
-      {% empty %}<tr><td colspan="6" class="text-center text-gris py-4">Sin datos con estos filtros.</td></tr>
+      <tr><td class="celda-principal">{{ x.nombre }}</td><td>{{ x.pedidas }}</td><td>{{ x.pacientes }}</td><td>{% if x.asistencia is None %}—{% else %}{{ x.asistencia }} %{% endif %}</td><td>{{ x.canceladas }}</td></tr>
+      {% empty %}<tr><td colspan="5" class="text-center text-gris py-4">Sin datos con estos filtros.</td></tr>
       {% endfor %}
       </tbody>
     </table></div></div>
@@ -130,7 +130,7 @@
   <div class="col-6 col-lg-2"><div class="kpi"><div class="valor">{{ resumen.en_espera }}</div><div class="etiqueta">En lista de espera</div></div></div>
 </div>
 <div class="tabla-hd"><div class="table-responsive"><table class="table orden-servidor">
-  <thead><tr>{% th_orden "Paciente" "nombre" %}{% th_orden "Edad · sexo" "edad" True %}{% th_orden "Nacionalidad" "nacionalidad" %}{% th_orden "Citas" "n_citas" True %}{% th_orden "Asistidas" "n_asistidas" True %}{% th_orden "Inasist." "n_inasistencias" True %}{% th_orden "Canceladas" "n_canceladas" True %}{% th_orden "Última atención" "ultima_atencion" True %}{% th_orden "Próxima cita" "proxima_cita" %}<th></th></tr></thead>
+  <thead><tr>{% th_orden "Paciente" "nombre" %}{% th_orden "Edad · sexo" "edad" True %}{% th_orden "Nacionalidad" "nacionalidad" %}{% th_orden "Citas" "n_citas" True %}{% th_orden "% asistencia" "pct_asistencia" True %}{% th_orden "Canceladas" "n_canceladas" True %}{% th_orden "Última atención" "ultima_atencion" True %}{% th_orden "Próxima cita" "proxima_cita" %}<th></th></tr></thead>
   <tbody>
   {% for p in pagina %}
   <tr>
@@ -139,14 +139,13 @@
     <td>{{ p.nacionalidad }}</td>
 
     <td class="fw-bold">{{ p.n_citas }}</td>
-    <td>{{ p.n_asistidas }}</td>
-    <td>{% if p.n_inasistencias %}<span class="pill pill-rojo">{{ p.n_inasistencias }}</span>{% else %}0{% endif %}</td>
+    <td>{% if p.pct_asistencia is None %}—{% else %}<span class="pill {% if p.pct_asistencia >= 85 %}pill-verde{% elif p.pct_asistencia >= 60 %}pill-naranjo{% else %}pill-rojo{% endif %}">{{ p.pct_asistencia|floatformat:0 }} %</span>{% endif %}</td>
     <td>{{ p.n_canceladas }}</td>
     <td class="text-nowrap">{{ p.ultima_atencion|date:"d/m/Y"|default:"—" }}</td>
     <td class="text-nowrap">{{ p.proxima_cita|date:"d/m/Y"|default:"—" }}</td>
     <td class="text-end"><a class="btn btn-suave btn-xs" href="{% url 'reportes:paciente' p.pk %}?{{ qs_hist }}{% if qs_hist %}&{% endif %}volver={{ request.get_full_path|urlencode }}">Ver historial</a></td>
   </tr>
-  {% empty %}<tr><td colspan="10" class="text-center text-gris py-4">No hay pacientes con estos filtros.</td></tr>
+  {% empty %}<tr><td colspan="9" class="text-center text-gris py-4">No hay pacientes con estos filtros.</td></tr>
   {% endfor %}
   </tbody>
 </table></div></div>

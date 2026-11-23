@@ -3,7 +3,7 @@ ListaEsperaService: orden de llegada por especialidad y policlínico (nunca por
 profesional). La TENS/TONS puede subir manualmente a un paciente.
 """
 from django.db import transaction
-from django.db.models import Count, Max, Q
+from django.db.models import Case, Count, ExpressionWrapper, F, FloatField, Max, Q, When
 
 from core import roles
 from core.exceptions import ReglaNegocioError
@@ -15,7 +15,16 @@ Estado = SolicitudEspera.Estado
 
 class ListaEsperaRepository:
     def base(self):
-        return SolicitudEspera.objects.select_related("paciente", "especialidad", "policlinico", "creada_por")
+        # % de asistencia del paciente en sus citas anteriores (None si no tiene asistencias registradas)
+        asistio = Count("paciente__citas", filter=Q(paciente__citas__asistencia__asistio=True), distinct=True)
+        no_asistio = Count("paciente__citas", filter=Q(paciente__citas__asistencia__asistio=False), distinct=True)
+        return (SolicitudEspera.objects.select_related("paciente", "especialidad", "policlinico", "creada_por")
+                .annotate(n_asistio=asistio, n_no_asistio=no_asistio)
+                .annotate(pct_asistencia=Case(
+                    When(Q(n_asistio__gt=0) | Q(n_no_asistio__gt=0),
+                         then=ExpressionWrapper(F("n_asistio") * 100.0 / (F("n_asistio") + F("n_no_asistio")),
+                                                output_field=FloatField())),
+                    default=None, output_field=FloatField())))
 
     def listar(self, especialidad=None, policlinico=None, estado=None):
         qs = self.base()

@@ -58,7 +58,7 @@ class FiltroReporteForm(BootstrapFormMixin, forms.Form):
 class FiltroPacientesForm(FiltroReporteForm):
     """Filtros adicionales del reporte de pacientes."""
 
-    CAMPOS_ORDEN = ["nombre", "edad", "nacionalidad", "n_citas", "n_asistidas", "n_inasistencias", "n_canceladas",
+    CAMPOS_ORDEN = ["nombre", "edad", "nacionalidad", "n_citas", "pct_asistencia", "n_canceladas",
                     "ultima_atencion", "proxima_cita", "fecha_registro"]
     ORDENES = [(f"{s}{c}", f"{s}{c}") for c in CAMPOS_ORDEN for s in ("", "-")]
 

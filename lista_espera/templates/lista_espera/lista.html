@@ -30,7 +30,7 @@
   <div class="col-xl-8">
 
     <div class="tabla-hd"><div class="table-responsive"><table class="table">
-      <thead><tr><th>#</th><th>Paciente</th><th>Especialidad</th>{% if not pol_tens %}<th>Policlínico</th>{% endif %}<th>Tiempo en espera</th><th>Estado</th>{% if puede_gestionar %}<th></th>{% endif %}</tr></thead>
+      <thead><tr><th>#</th><th>Paciente</th><th>Especialidad</th>{% if not pol_tens %}<th>Policlínico</th>{% endif %}<th>Tiempo en espera</th><th>% asistencia</th><th>Estado</th>{% if puede_gestionar %}<th></th>{% endif %}</tr></thead>
       <tbody>
       {% for s in filas %}
       <tr class="{% if s == sel %}seleccionada{% endif %}">
@@ -39,10 +39,11 @@
         <td>{{ s.especialidad }}</td>
         {% if not pol_tens %}<td>{{ s.policlinico }}</td>{% endif %}
         <td>{{ s.dias_en_espera }} día{{ s.dias_en_espera|pluralize }}<div class="celda-sec">desde {{ s.creada_en|date:"d/m" }}</div></td>
+        <td{% if s.pct_asistencia is None %} data-orden=""{% endif %}>{% if s.pct_asistencia is None %}<span class="text-gris">Sin citas</span>{% else %}<span class="pill {% if s.pct_asistencia >= 85 %}pill-verde{% elif s.pct_asistencia >= 60 %}pill-naranjo{% else %}pill-rojo{% endif %}">{{ s.pct_asistencia|floatformat:0 }} %</span>{% endif %}</td>
         <td>{% if s.estado == "en_espera" %}<span class="pill pill-azul">En espera</span>{% elif s.estado == "contactado" %}<span class="pill pill-naranjo">Contactado</span>{% elif s.estado == "sin_contacto" %}<span class="pill pill-rojo">Sin contacto</span>{% elif s.estado == "agendado" %}<span class="pill pill-verde">Agendado</span>{% else %}<span class="pill pill-gris">{{ s.get_estado_display }}</span>{% endif %}</td>
         {% if puede_gestionar %}<td class="text-end"><a class="btn btn-suave btn-xs" href="?sel={{ s.pk }}{% if filtros_qs %}&{{ filtros_qs }}{% endif %}">Gestionar</a></td>{% endif %}
       </tr>
-      {% empty %}<tr><td colspan="7" class="text-center text-gris py-4">No hay pacientes en la lista de espera.</td></tr>
+      {% empty %}<tr><td colspan="8" class="text-center text-gris py-4">No hay pacientes en la lista de espera.</td></tr>
       {% endfor %}
       </tbody>
     </table></div></div>

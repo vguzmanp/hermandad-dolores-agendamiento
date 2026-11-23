@@ -446,8 +446,19 @@ class Command(BaseCommand):
             citas.append(Cita(cupo=cupo, paciente=p, creada_por=self.tens_de(cupo), creada_en=creada,
                               canal=self.rnd.choice(["presencial", "telefono", "telefono", "whatsapp", "web"]), **datos))
         Cita.objects.bulk_create(citas)
+        self.registrar_recordatorios(Cita.objects.filter(cupo__fecha__in=fechas, recordatorio_enviado_en__isnull=False,
+                                                         mensajes__isnull=True))
         self.stdout.write(f"  Próximos {dias_habiles} días hábiles ({fechas[0]:%d/%m} al {fechas[-1]:%d/%m}): "
                           f"{len(citas)} citas más")
+
+    def registrar_recordatorios(self, citas):
+        """Deja registrado el recordatorio (WhatsApp y correo) de las citas creadas directo en la base."""
+        from citas.notificaciones import NotificadorLog, aviso_recordatorio
+        notificador = NotificadorLog()  # solo registra, no envía
+        for c in citas.select_related("paciente", "cupo__agenda__profesional__especialidad", "cupo__agenda__policlinico"):
+            for m in notificador.enviar(c.paciente, aviso_recordatorio(c), c, c.creada_por):
+                m.enviado_en = c.recordatorio_enviado_en
+                m.save(update_fields=["enviado_en"])
 
     def cargar_lista_espera(self):
         """Listas de espera por especialidad y policlínico (nunca por profesional)."""

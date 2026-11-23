@@ -10,7 +10,7 @@ from core.exceptions import ReglaNegocioError
 from profesionales.models import Especialidad, Policlinico, Profesional
 
 from .models import SolicitudEspera
-from .services import ListaEsperaService, posiciones
+from .services import ListaEsperaRepository, ListaEsperaService, posiciones
 
 
 class ListaEsperaTests(CitasBase):
@@ -91,3 +91,15 @@ class ListaEsperaTests(CitasBase):
                                                     "especialidad": self.esp.pk, "profesional": self.prof.pk})
         s = SolicitudEspera.objects.get()
         self.assertEqual((s.paciente, s.especialidad, s.policlinico), (self.p1, self.esp, self.pol))
+
+    def test_porcentaje_de_asistencia(self):
+        from asistencia.models import Asistencia
+        cita = self.agendar(self.p1)
+        Asistencia.objects.create(cita=cita, asistio=True, registrada_por=self.tens)
+        filas = {s.paciente_id: s for s in ListaEsperaRepository().listar(self.esp, self.pol)}
+        self.assertEqual(filas[self.p1.pk].pct_asistencia, 100)
+        self.assertIsNone(filas[self.p2.pk].pct_asistencia)
+        self.client.force_login(self.tens)
+        r = self.client.get(reverse("lista_espera:lista"))
+        self.assertContains(r, "100 %")
+        self.assertContains(r, "Sin citas")

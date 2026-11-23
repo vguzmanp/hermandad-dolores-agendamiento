@@ -10,7 +10,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from django.db.models import Count, Exists, F, Max, Min, OuterRef, Q
+from django.db.models import Case, Count, Exists, ExpressionWrapper, F, FloatField, Max, Min, OuterRef, Q, When
 from django.utils import timezone
 
 from citas.models import Cita
@@ -260,7 +260,8 @@ class ReporteService:
             grupos["prof"][prof.pk]["pols"].add(pol.nombre)
         for dic in grupos.values():
             for fila in dic.values():
-                fila["inasistencia"] = round(_pct(fila["inasistencias"], fila["atenciones"] + fila["inasistencias"]))
+                registradas = fila["atenciones"] + fila["inasistencias"]
+                fila["asistencia"] = round(_pct(fila["atenciones"], registradas)) if registradas else None
                 fila["pacientes"] = len(fila["pacientes"])
                 if "pols" in fila:
                     fila["policlinicos"] = ", ".join(sorted(fila.pop("pols")))
@@ -287,11 +288,11 @@ class ReporteService:
         salida = io.StringIO()
         w = csv.writer(salida, delimiter=";")
         w.writerow([f"Período: {f.etiqueta}"] + f.activos)
-        cab = ["Horas pedidas", "Pacientes", "Atenciones", "Inasistencias", "Inasistencia %", "Canceladas", "Sobrecupos"]
+        cab = ["Horas pedidas", "Pacientes", "Atenciones", "Inasistencias", "Asistencia %", "Canceladas", "Sobrecupos"]
 
         def fila(x):
-            return [x["pedidas"], x["pacientes"], x["atenciones"], x["inasistencias"], x["inasistencia"],
-                    x["canceladas"], x["sobrecupos"]]
+            return [x["pedidas"], x["pacientes"], x["atenciones"], x["inasistencias"],
+                    "" if x["asistencia"] is None else x["asistencia"], x["canceladas"], x["sobrecupos"]]
 
         w.writerow([])
         w.writerow(["Profesional", "Especialidad", "Policlínico(s)"] + cab)
@@ -322,7 +323,12 @@ class ReporteService:
                                                                   citas__estado__in=Cita.VIGENTES)),
                   en_espera=Exists(SolicitudEspera.objects.filter(paciente=OuterRef("pk"),
                                                                   estado__in=SolicitudEspera.ACTIVOS)),
-              ))
+              )
+              .annotate(pct_asistencia=Case(  # sin asistencias registradas: sin porcentaje
+                  When(Q(n_asistidas__gt=0) | Q(n_inasistencias__gt=0),
+                       then=ExpressionWrapper(F("n_asistidas") * 100.0 / (F("n_asistidas") + F("n_inasistencias")),
+                                              output_field=FloatField())),
+                  default=None, output_field=FloatField())))
         x = f.extra
         texto = (x.get("q") or "").strip()
         if texto:
@@ -360,13 +366,15 @@ class ReporteService:
         w.writerow([f"Período: {f.etiqueta}"] + f.activos)
         w.writerow([])
         w.writerow(["Nombre", "RUT", "Edad", "Sexo", "Nacionalidad", "Celular", "Correo",
-                    "Adulto responsable", "Citas", "Asistidas", "Inasistencias", "Canceladas", "Última atención",
+                    "Adulto responsable", "Citas", "Asistidas", "Inasistencias", "Asistencia %", "Canceladas",
+                    "Última atención",
                     "Próxima cita", "En lista de espera"])
         for p in self.pacientes(f):
             resp = getattr(p, "adulto_responsable", None)
             w.writerow([p.nombre, p.rut_formateado, p.edad, p.get_sexo_display(), p.nacionalidad, p.celular, p.correo,
                         f"{resp.nombre} ({resp.parentesco})" if resp else "",
-                        p.n_citas, p.n_asistidas, p.n_inasistencias, p.n_canceladas,
+                        p.n_citas, p.n_asistidas, p.n_inasistencias,
+                        "" if p.pct_asistencia is None else round(p.pct_asistencia), p.n_canceladas,
                         p.ultima_atencion.strftime("%d/%m/%Y") if p.ultima_atencion else "",
                         p.proxima_cita.strftime("%d/%m/%Y") if p.proxima_cita else "",
                         "Sí" if p.en_espera else "No"])
