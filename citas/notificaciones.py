@@ -133,10 +133,9 @@ def aviso_agendamiento(citas: list[Cita]) -> Aviso:
                            for i, x in enumerate(citas, 1))
         detalle = f"se reservaron {len(citas)} sesiones de {_quien(c)} {_lugar(c)}:\n{lineas}"
     whatsapp = (f"Hola {nombre}, {detalle}\n\nTe enviaremos un recordatorio {c.dias_aviso} días antes para "
-                f"confirmar tu asistencia. Para cambiar o cancelar: {link_cita(c)}")
+                f"confirmar tu asistencia.")
     correo = (f"Hola {nombre}:\n\nTu hora quedó reservada.\n\n{_ficha(c)}\n\n"
-              f"Recuerda traer tu certificado de FONASA y la inscripción al CESFAM.\n"
-              f"Para cambiar o cancelar tu hora: {link_cita(c)}")
+              f"Recuerda traer tu certificado de FONASA y la inscripción al CESFAM.")
     return Aviso(Tipo.AGENDAMIENTO, whatsapp, f"Hora reservada para el {fecha_larga(c.cupo.fecha)}", correo)
 
 
