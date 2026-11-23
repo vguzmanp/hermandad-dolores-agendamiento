@@ -98,3 +98,39 @@ class PortalAvisoTests(CitasBase):
 
     def test_codigo_inexistente(self):
         self.assertEqual(self.client.get(reverse("portal:responder", args=["NOEXISTE"])).status_code, 404)
+
+
+class PortalCorreoTests(CitasBase):
+    """Con el envío de correos activado: reserva web, link del correo y confirmación."""
+
+    def setUp(self):
+        super().setUp()
+        from unittest.mock import patch
+        from citas.notificaciones import NotificadorCorreo
+        from portal import views
+        notificador = NotificadorCorreo()
+        for servicio in (views.agendamiento, views.confirmacion):
+            p = patch.object(servicio, "notificador", notificador)
+            p.start()
+            self.addCleanup(p.stop)
+        self.p1.correo = "paciente@example.com"
+        self.p1.save()
+
+    def test_reserva_web_envia_correo_y_el_link_confirma(self):
+        from django.core import mail
+        self.client.post(reverse("portal:horas"), {"esp": self.esp.pk, "pol": self.pol.pk, "cupo": self.cupo.pk})
+        self.client.post(reverse("portal:datos"), {"paso": "rut", "rut": self.p1.rut})
+        self.client.post(reverse("portal:confirmar"))
+        cita = Cita.objects.get(paciente=self.p1)
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["paciente@example.com"])
+        self.assertIn(f"/c/{cita.token}", mail.outbox[0].body)
+
+        self.assertEqual(self.client.get(f"/c/{cita.token}/").status_code, 200)
+        self.client.post(reverse("portal:accion", args=[cita.token, "confirmar"]))
+        cita.refresh_from_db()
+        self.assertEqual(cita.estado, Cita.Estado.CONFIRMADA)
+        self.assertEqual(cita.respuesta_origen, "paciente")
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual(mail.outbox[1].subject, "Asistencia confirmada")

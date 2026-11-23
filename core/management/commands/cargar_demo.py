@@ -95,15 +95,15 @@ AGENDAS_DEMO = [
 # Pacientes con nombre fijo (se usan en los escenarios de la demo)
 # nombre, rut, nacimiento, sexo, nacionalidad, celular, correo, dirección, inscrito CESFAM
 PACIENTES_DEMO = [
-    ("María José Pérez Lagos", 15234871, date(1985, 3, 14), "F", "Chilena", "+56911112222", "mjperez@demo.cl", "Av. Los Aromos 123, Santiago", True),
+    ("María José Pérez Lagos", 15234871, date(1985, 3, 14), "F", "Chilena", "+56911112222", "mjperez@example.com", "Av. Los Aromos 123, Santiago", True),
     ("Juan Carlos Fuentes Díaz", 9876543, date(1958, 7, 2), "M", "Chilena", "+56922223333", "", "Pasaje Las Rosas 45, Santiago", True),
-    ("Ana Luisa Contreras Vera", 18765432, date(1993, 11, 21), "F", "Chilena", "+56933334444", "ana.contreras@demo.cl", "Calle Nueva 890, Independencia", False),
+    ("Ana Luisa Contreras Vera", 18765432, date(1993, 11, 21), "F", "Chilena", "+56933334444", "ana.contreras@example.com", "Calle Nueva 890, Independencia", False),
     ("Pedro Antonio Morales Silva", 12345670, date(1971, 1, 30), "M", "Chilena", "+56944445555", "", "Av. Central 1500, Recoleta", True),
     ("Valentina Ignacia Torres Rojas", 24123456, date(2015, 5, 9), "F", "Chilena", "+56955556666", "", "Los Jazmines 77, Santiago", True),
     ("Tomás Benjamín Araya Núñez", 25234567, date(2018, 9, 17), "M", "Chilena", "+56966667777", "", "Los Jazmines 79, Santiago", False),
     ("Rosa Elena Gutiérrez Pino", 6543219, date(1949, 12, 3), "F", "Chilena", "+56977778888", "", "San Pablo 3456, Quinta Normal", True),
-    ("Luis Alberto Castillo Mena", 16789012, date(1988, 4, 25), "M", "Peruana", "+56988889999", "lcastillo@demo.cl", "Mapocho 2210, Santiago", True),
-    ("Camila Fernanda Reyes Ortiz", 19876543, date(1999, 8, 11), "F", "Chilena", "+56999990000", "camila.reyes@demo.cl", "Brasil 156, Santiago", True),
+    ("Luis Alberto Castillo Mena", 16789012, date(1988, 4, 25), "M", "Peruana", "+56988889999", "lcastillo@example.com", "Mapocho 2210, Santiago", True),
+    ("Camila Fernanda Reyes Ortiz", 19876543, date(1999, 8, 11), "F", "Chilena", "+56999990000", "camila.reyes@example.com", "Brasil 156, Santiago", True),
     ("Jean Pierre Louis", 26345678, date(1990, 2, 19), "M", "Haitiana", "+56910101010", "", "Esperanza 34, Estación Central", False),
     ("Sofía Antonia Bravo Leiva", 23456789, date(2010, 6, 1), "F", "Chilena", "+56912121212", "", "Huérfanos 3000, Santiago", True),
     # celular fijo (no es móvil): su aviso por WhatsApp falla, para mostrar «Reintentar aviso»

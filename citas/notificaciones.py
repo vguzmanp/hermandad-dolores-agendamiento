@@ -1,20 +1,22 @@
 """
 Notificaciones a pacientes.
 
-WhatsApp y el correo NO se integran en el MVP: INotificador define el contrato y
-NotificadorLog guarda cada mensaje en la base de datos (pantalla «Avisos enviados»).
-El aviso se envía por WhatsApp y, si el paciente tiene correo (RN-03, opcional),
-también por correo. Ambos traen el link /c/<código>/ para responder.
+INotificador define el contrato. El aviso va por WhatsApp y, si el paciente tiene
+correo (opcional), también por correo. Ambos traen el link /c/<código>/ para responder.
+Cada envío queda registrado en MensajeEnviado (pantalla «Avisos enviados»).
 
-Para demostrar los «avisos con falla», NotificadorLog marca como no enviado el
-WhatsApp cuando el celular no es un móvil chileno válido (+56 9 XXXX XXXX).
-Para integrar WhatsApp real bastaría otra implementación de INotificador.
+- NotificadorLog: no envía nada, solo registra los mensajes.
+- NotificadorCorreo: envía el correo por SMTP; el WhatsApp sigue registrado sin enviarse.
+
+Se elige con ENVIAR_CORREOS en .env (ver notificador_configurado()).
 """
+import logging
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from django.conf import settings
+from django.core.mail import send_mail
 
 from core.fechas import fecha_larga
 from pacientes.models import Paciente
@@ -22,6 +24,7 @@ from pacientes.models import Paciente
 from .models import Cita, MensajeEnviado
 
 Tipo = MensajeEnviado.Tipo
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -53,11 +56,33 @@ class NotificadorLog(INotificador):
             tipo=aviso.tipo, mensaje=aviso.whatsapp, enviado_por=usuario,
         )]
         if paciente.correo:
+            enviado = self.enviar_correo(paciente.correo, aviso)
             envios.append(MensajeEnviado.objects.create(
                 paciente=paciente, cita=cita, destinatario=paciente.correo, canal=MensajeEnviado.Canal.CORREO,
+                estado=MensajeEnviado.Estado.ENVIADO if enviado else MensajeEnviado.Estado.FALLIDO,
                 tipo=aviso.tipo, asunto=aviso.asunto, mensaje=aviso.correo, enviado_por=usuario,
             ))
         return envios
+
+    def enviar_correo(self, destino: str, aviso: Aviso) -> bool:
+        """Sin envío real: el correo solo queda registrado."""
+        return True
+
+
+class NotificadorCorreo(NotificadorLog):
+    """Envía el correo de verdad por SMTP. Si falla, queda como «No se pudo enviar» y la operación sigue."""
+
+    def enviar_correo(self, destino: str, aviso: Aviso) -> bool:
+        try:
+            send_mail(aviso.asunto, aviso.correo, None, [destino], fail_silently=False)
+            return True
+        except Exception:
+            logger.exception("No se pudo enviar el correo a %s", destino)
+            return False
+
+
+def notificador_configurado() -> INotificador:
+    return NotificadorCorreo() if settings.ENVIAR_CORREOS else NotificadorLog()
 
 
 def contacto(paciente: Paciente) -> tuple[str, str]:

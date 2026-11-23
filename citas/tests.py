@@ -326,3 +326,38 @@ class PoliclinicoYRespuestaTests(CitasBase):
         with self.assertRaises(CupoNoDisponibleError) as e:
             self.agendar(self.p2)
         self.assertNotIn("RN-", str(e.exception))
+
+
+class NotificadorCorreoTests(TestCase):
+    def setUp(self):
+        from .notificaciones import Aviso
+        self.paciente = Paciente.objects.create(
+            nombre="Ana Pérez", rut="11111111-1", celular="+56912345678", correo="ana@ejemplo.cl",
+            direccion="Calle 1", fecha_nacimiento=date(1990, 1, 1), sexo="F")
+        self.aviso = Aviso(MensajeEnviado.Tipo.OTRO, "texto whatsapp", "Asunto de prueba", "texto correo")
+
+    def test_envia_el_correo_y_lo_registra_como_enviado(self):
+        from django.core import mail
+        from .notificaciones import NotificadorCorreo
+        envios = NotificadorCorreo().enviar(self.paciente, self.aviso)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["ana@ejemplo.cl"])
+        self.assertEqual(mail.outbox[0].subject, "Asunto de prueba")
+        correo = next(e for e in envios if e.canal == MensajeEnviado.Canal.CORREO)
+        self.assertEqual(correo.estado, MensajeEnviado.Estado.ENVIADO)
+
+    def test_si_falla_el_envio_queda_como_no_enviado(self):
+        from unittest.mock import patch
+        from .notificaciones import NotificadorCorreo
+        with patch("citas.notificaciones.send_mail", side_effect=OSError("sin conexión")):
+            envios = NotificadorCorreo().enviar(self.paciente, self.aviso)
+        correo = next(e for e in envios if e.canal == MensajeEnviado.Canal.CORREO)
+        self.assertEqual(correo.estado, MensajeEnviado.Estado.FALLIDO)
+
+    def test_sin_correo_no_se_envia_nada(self):
+        from django.core import mail
+        from .notificaciones import NotificadorCorreo
+        self.paciente.correo = ""
+        envios = NotificadorCorreo().enviar(self.paciente, self.aviso)
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual([e.canal for e in envios], [MensajeEnviado.Canal.WHATSAPP])

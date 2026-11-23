@@ -14,7 +14,7 @@ from pacientes.models import Paciente
 
 from . import notificaciones as avisos
 from .models import Cita, MensajeEnviado
-from .notificaciones import INotificador, NotificadorLog
+from .notificaciones import INotificador, notificador_configurado
 from .repositories import CitaRepositoryPostgres, ICitaRepository
 
 Estado = Cita.Estado
@@ -44,7 +44,7 @@ class AgendamientoService:
 
     def __init__(self, repo: ICitaRepository | None = None, notificador: INotificador | None = None):
         self.repo = repo or CitaRepositoryPostgres()
-        self.notificador = notificador or NotificadorLog()
+        self.notificador = notificador or notificador_configurado()
 
     # ---------------------------------------------------------- consultas
     def disponibilidad(self, desde, hasta=None, especialidad=None, profesional=None, policlinico=None):
@@ -159,7 +159,7 @@ class ConfirmacionService:
     def __init__(self, repo: ICitaRepository | None = None, notificador: INotificador | None = None,
                  agendamiento: AgendamientoService | None = None):
         self.repo = repo or CitaRepositoryPostgres()
-        self.notificador = notificador or NotificadorLog()
+        self.notificador = notificador or notificador_configurado()
         self.agendamiento = agendamiento or AgendamientoService(self.repo, self.notificador)
 
     # ---------------------------------------------------------- consultas

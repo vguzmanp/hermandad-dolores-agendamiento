@@ -136,3 +136,17 @@ AGENDA_SEMANAS_GENERACION = int(os.getenv("AGENDA_SEMANAS_GENERACION", "4"))
 SITIO_PUBLICO_URL = os.getenv("SITIO_PUBLICO_URL", "http://127.0.0.1:8000")
 # Tamaño máximo de documentos subidos (MB).
 DOCUMENTO_MAX_MB = int(os.getenv("DOCUMENTO_MAX_MB", "10"))
+
+# --- Correo electrónico (avisos a pacientes) --------------------------------
+# ENVIAR_CORREOS=False: los correos solo quedan registrados en «Avisos enviados».
+# ENVIAR_CORREOS=True: se envían por SMTP (Gmail: contraseña de aplicación).
+ENVIAR_CORREOS = env_bool("ENVIAR_CORREOS", False)
+EMAIL_BACKEND = ("django.core.mail.backends.smtp.EmailBackend" if ENVIAR_CORREOS
+                 else "django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "").replace(" ", "")
+EMAIL_TIMEOUT = 15
+DEFAULT_FROM_EMAIL = os.getenv("EMAIL_REMITENTE", f"Hermandad de Dolores <{EMAIL_HOST_USER}>")
